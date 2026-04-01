@@ -43,6 +43,8 @@ pub struct MessageView {
     pub scroll_offset: u16,
     /// Partial text still being streamed in.
     pub streaming_text: String,
+    /// Whether auto-scroll-to-bottom is active.
+    pub auto_scroll: bool,
 }
 
 impl Default for MessageView {
@@ -59,12 +61,16 @@ impl MessageView {
             messages: Vec::new(),
             scroll_offset: 0,
             streaming_text: String::new(),
+            auto_scroll: true,
         }
     }
 
-    /// Append a fully-formed message.
+    /// Append a fully-formed message. Auto-scrolls to bottom when enabled.
     pub fn push(&mut self, msg: DisplayMessage) {
         self.messages.push(msg);
+        if self.auto_scroll {
+            self.scroll_offset = 0;
+        }
     }
 
     /// Append partial text to the active stream.
@@ -84,27 +90,76 @@ impl MessageView {
         }
     }
 
-    /// Scroll up by `amount` lines.
+    /// Scroll up by `amount` lines. Disables auto-scroll.
     #[inline]
     pub fn scroll_up(&mut self, amount: u16) {
         self.scroll_offset = self.scroll_offset.saturating_add(amount);
+        self.auto_scroll = false;
     }
 
     /// Scroll down by `amount` lines (towards the bottom).
     #[inline]
     pub fn scroll_down(&mut self, amount: u16) {
         self.scroll_offset = self.scroll_offset.saturating_sub(amount);
+        if self.scroll_offset == 0 {
+            self.auto_scroll = true;
+        }
     }
 
-    /// Jump to the newest messages.
+    /// Scroll up by a page (the given number of visible lines).
+    #[inline]
+    pub fn page_up(&mut self, visible_lines: u16) {
+        self.scroll_up(visible_lines.saturating_sub(2).max(1));
+    }
+
+    /// Scroll down by a page.
+    #[inline]
+    pub fn page_down(&mut self, visible_lines: u16) {
+        self.scroll_down(visible_lines.saturating_sub(2).max(1));
+    }
+
+    /// Jump to the newest messages and re-enable auto-scroll.
     #[inline]
     pub fn scroll_to_bottom(&mut self) {
         self.scroll_offset = 0;
+        self.auto_scroll = true;
+    }
+
+    /// Build the welcome banner shown when the message list is empty.
+    #[must_use]
+    pub fn welcome_lines(theme: &Theme) -> Vec<Line<'static>> {
+        vec![
+            Line::from(Span::styled(
+                "Claude Code (Rust) v0.1.0".to_string(),
+                Style::default()
+                    .fg(theme.primary)
+                    .add_modifier(Modifier::BOLD),
+            )),
+            Line::raw(""),
+            Line::from("Type a message to start a conversation.".to_string()),
+            Line::raw(""),
+            Line::from(vec![
+                Span::styled("Commands: ", Style::default().fg(theme.dim)),
+                Span::styled("/help", Style::default().fg(theme.info)),
+                Span::raw(", "),
+                Span::styled("/model", Style::default().fg(theme.info)),
+                Span::raw(", "),
+                Span::styled("/status", Style::default().fg(theme.info)),
+                Span::raw(", "),
+                Span::styled("/cost", Style::default().fg(theme.info)),
+            ]),
+            Line::raw(""),
+        ]
     }
 
     /// Render the message list into the given area.
     pub fn render(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let mut lines: Vec<Line<'_>> = Vec::new();
+
+        // Show welcome banner when no messages exist yet
+        if self.messages.is_empty() && self.streaming_text.is_empty() {
+            lines.extend(Self::welcome_lines(theme));
+        }
 
         for msg in &self.messages {
             let (prefix, color) = match msg.role {
@@ -198,5 +253,54 @@ mod tests {
         let mut mv = MessageView::new();
         mv.finish_streaming();
         assert!(mv.messages.is_empty());
+    }
+
+    #[test]
+    fn welcome_lines_not_empty() {
+        let theme = crate::theme::Theme::dark();
+        let lines = MessageView::welcome_lines(&theme);
+        assert!(lines.len() >= 3, "welcome should have at least 3 lines");
+    }
+
+    #[test]
+    fn auto_scroll_on_push() {
+        let mut mv = MessageView::new();
+        mv.scroll_up(10);
+        assert!(!mv.auto_scroll);
+        assert_eq!(mv.scroll_offset, 10);
+        // push resets to bottom when auto_scroll is off (because we disabled it)
+        // but auto_scroll is false, so offset stays
+        // Now re-enable and push
+        mv.scroll_to_bottom();
+        assert!(mv.auto_scroll);
+        mv.scroll_up(5);
+        assert!(!mv.auto_scroll);
+        mv.scroll_down(5);
+        assert!(mv.auto_scroll);
+    }
+
+    #[test]
+    fn page_up_down() {
+        let mut mv = MessageView::new();
+        mv.page_up(20);
+        assert_eq!(mv.scroll_offset, 18); // 20 - 2
+        mv.page_down(10);
+        assert_eq!(mv.scroll_offset, 10); // 18 - 8
+        mv.page_down(20);
+        assert_eq!(mv.scroll_offset, 0);
+        assert!(mv.auto_scroll);
+    }
+
+    #[test]
+    fn push_auto_scrolls_to_bottom() {
+        let mut mv = MessageView::new();
+        assert!(mv.auto_scroll);
+        mv.push(DisplayMessage {
+            role: MessageRole::User,
+            text: "first".into(),
+            tool_info: None,
+            timestamp: 0.0,
+        });
+        assert_eq!(mv.scroll_offset, 0, "offset should stay 0 on push with auto_scroll");
     }
 }

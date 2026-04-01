@@ -1,9 +1,7 @@
 //! Integration tests for the command system (claude_commands).
 
-use std::sync::Arc;
-
 use claude_commands::builtin::register_builtins;
-use claude_commands::{Command, CommandContext, CommandRegistry, CommandResult};
+use claude_commands::{CommandContext, CommandRegistry, CommandResult};
 
 fn setup_registry() -> CommandRegistry {
     let mut registry = CommandRegistry::new();

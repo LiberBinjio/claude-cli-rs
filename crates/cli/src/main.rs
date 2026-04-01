@@ -300,11 +300,11 @@ fn run_self_test(args: &CliArgs) -> anyhow::Result<()> {
     println!("CWD: {}", cwd.display());
 
     // 4. Tools
-    let tool_set = claude_query::ToolSet::new();
+    let tool_set = setup::create_tool_set();
     println!("Tools registered: {}", tool_set.len());
 
     // 5. Commands
-    let cmd_registry = claude_commands::CommandRegistry::new();
+    let cmd_registry = setup::create_command_registry();
     println!("Commands registered: {}", cmd_registry.all().len());
 
     println!("==========================================");

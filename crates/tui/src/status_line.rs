@@ -21,6 +21,10 @@ pub struct StatusInfo {
     pub session_id: String,
     /// Active permission mode label.
     pub permission_mode: String,
+    /// Whether a valid API key is available.
+    pub auth_ok: bool,
+    /// Whether the system is ready (not loading).
+    pub is_ready: bool,
 }
 
 impl Default for StatusInfo {
@@ -31,6 +35,8 @@ impl Default for StatusInfo {
             total_cost_usd: 0.0,
             session_id: String::new(),
             permission_mode: "default".into(),
+            auth_ok: true,
+            is_ready: true,
         }
     }
 }
@@ -45,7 +51,23 @@ pub fn render_status_line(frame: &mut Frame, area: Rect, info: &StatusInfo, them
 
     let tokens_str = format_tokens(info.total_tokens);
 
+    // Left: mode indicator
+    let mode_span = if !info.auth_ok {
+        Span::styled(
+            " \u{26a0} No API key \u{2014} Set ANTHROPIC_API_KEY ",
+            Style::default()
+                .fg(theme.error)
+                .add_modifier(Modifier::BOLD),
+        )
+    } else if info.is_ready {
+        Span::styled(" Ready ", Style::default().fg(theme.success))
+    } else {
+        Span::styled(" Thinking... ", Style::default().fg(theme.spinner))
+    };
+
     let line = Line::from(vec![
+        mode_span,
+        Span::raw("\u{2502} "),
         Span::styled(
             " \u{25c6} ",
             Style::default().fg(theme.primary),
@@ -129,5 +151,30 @@ mod tests {
             "$0.00".into()
         };
         assert_eq!(s, "$0.00");
+    }
+
+    #[test]
+    fn default_auth_ok_and_ready() {
+        let info = StatusInfo::default();
+        assert!(info.auth_ok);
+        assert!(info.is_ready);
+    }
+
+    #[test]
+    fn auth_failure_state() {
+        let info = StatusInfo {
+            auth_ok: false,
+            ..Default::default()
+        };
+        assert!(!info.auth_ok);
+    }
+
+    #[test]
+    fn loading_state() {
+        let info = StatusInfo {
+            is_ready: false,
+            ..Default::default()
+        };
+        assert!(!info.is_ready);
     }
 }

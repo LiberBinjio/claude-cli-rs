@@ -85,15 +85,20 @@ pub fn register_p3_tools(registry: &mut ToolRegistry) {
     registry.register(Arc::new(send_message::SendMessageTool));
 }
 
-/// Register all built-in tools (P0 through P3).
+/// Register all built-in tools (P0 through P3) into an existing registry.
+pub fn register_all_tools(registry: &mut ToolRegistry) {
+    register_p0_tools(registry);
+    register_p0b_tools(registry);
+    register_p1_tools(registry);
+    register_p2_tools(registry);
+    register_p3_tools(registry);
+}
+
+/// Create a ToolRegistry with all tools pre-registered.
 #[must_use]
 pub fn create_default_registry() -> ToolRegistry {
     let mut registry = ToolRegistry::new();
-    register_p0_tools(&mut registry);
-    register_p0b_tools(&mut registry);
-    register_p1_tools(&mut registry);
-    register_p2_tools(&mut registry);
-    register_p3_tools(&mut registry);
+    register_all_tools(&mut registry);
     registry
 }
 
@@ -118,5 +123,42 @@ mod tests {
         let names = registry.names();
         // 23 total built-in tools (excluding dynamic MCP proxy)
         assert_eq!(names.len(), 23, "Expected 23 tools, got: {names:?}");
+    }
+
+    #[test]
+    fn test_create_default_registry_has_tools() {
+        let registry = create_default_registry();
+        assert!(
+            registry.all().len() >= 20,
+            "expected at least 20 tools, got {}",
+            registry.all().len()
+        );
+    }
+
+    #[test]
+    fn test_all_register_functions_exist() {
+        let mut r = ToolRegistry::new();
+        register_p0_tools(&mut r);
+        let p0_count = r.all().len();
+        register_p0b_tools(&mut r);
+        let p0b_count = r.all().len() - p0_count;
+        register_p1_tools(&mut r);
+        let p1_count = r.all().len() - p0_count - p0b_count;
+        register_p2_tools(&mut r);
+        register_p3_tools(&mut r);
+        let total = r.all().len();
+        assert!(p0_count >= 2, "P0 should have >= 2 tools, got {p0_count}");
+        assert!(p0b_count >= 4, "P0b should have >= 4 tools, got {p0b_count}");
+        assert!(p1_count >= 3, "P1 should have >= 3 tools, got {p1_count}");
+        assert!(total >= 20, "total should be >= 20, got {total}");
+    }
+
+    #[test]
+    fn test_register_all_tools_matches_create_default() {
+        let mut r = ToolRegistry::new();
+        register_all_tools(&mut r);
+        let default = create_default_registry();
+        assert_eq!(r.all().len(), default.all().len());
+        assert_eq!(r.names(), default.names());
     }
 }

@@ -6,6 +6,7 @@ use std::sync::Arc;
 use claude_api::ApiClient;
 use claude_auth::providers::resolve_api_provider;
 use claude_commands::CommandRegistry;
+use claude_commands::builtin::register_builtins;
 use claude_core::config::AppConfig;
 use claude_query::engine::QueryEngine;
 use claude_query::system_prompt::build_system_prompt;
@@ -47,11 +48,11 @@ pub fn setup(args: &CliArgs) -> anyhow::Result<AppServices> {
     // 4. API client
     let api_client = Arc::new(ApiClient::new(provider, config.clone()));
 
-    // 5. Tools (empty for now — will be populated by claude_tools)
-    let tool_set = Arc::new(ToolSet::new());
+    // 5. Tools — populate from claude_tools registry
+    let tool_set = Arc::new(create_tool_set());
 
-    // 6. Commands
-    let cmd_registry = Arc::new(CommandRegistry::new());
+    // 6. Commands — register all builtins
+    let cmd_registry = Arc::new(create_command_registry());
 
     // 7. Query engine
     let tool_names = tool_set.names();
@@ -62,6 +63,25 @@ pub fn setup(args: &CliArgs) -> anyhow::Result<AppServices> {
     engine.set_system_prompt(system_prompt);
 
     Ok(AppServices { engine })
+}
+
+/// Create a [`ToolSet`] populated with all built-in tools.
+#[must_use]
+pub fn create_tool_set() -> ToolSet {
+    let registry = claude_tools::create_default_registry();
+    let mut tool_set = ToolSet::new();
+    for tool in registry.all() {
+        tool_set.register(Arc::clone(tool));
+    }
+    tool_set
+}
+
+/// Create a [`CommandRegistry`] with all built-in commands.
+#[must_use]
+pub fn create_command_registry() -> CommandRegistry {
+    let mut registry = CommandRegistry::new();
+    register_builtins(&mut registry);
+    registry
 }
 
 #[cfg(test)]

@@ -75,6 +75,8 @@ impl ReplView {
                     Style::default().add_modifier(Modifier::BOLD),
                 ),
                 Span::raw(" newline | "),
+                Span::styled("PgUp/PgDn", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(" scroll | "),
                 Span::styled("Ctrl+C", Style::default().add_modifier(Modifier::BOLD)),
                 Span::raw(" quit"),
             ])
@@ -84,12 +86,21 @@ impl ReplView {
 
         // ── Input box ──
         let input_text = self.input.text();
-        let input_widget = Paragraph::new(input_text).block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(" > ")
-                .border_style(Style::default().fg(theme.border)),
-        );
+        let placeholder_style = Style::default().fg(theme.dim);
+        let input_block = Block::default()
+            .borders(Borders::ALL)
+            .title(" > ")
+            .border_style(Style::default().fg(theme.border));
+
+        let input_widget = if input_text.is_empty() {
+            Paragraph::new(Span::styled(
+                "Type a message...",
+                placeholder_style,
+            ))
+            .block(input_block)
+        } else {
+            Paragraph::new(input_text).block(input_block)
+        };
         frame.render_widget(input_widget, chunks[2]);
 
         // Cursor
@@ -119,5 +130,12 @@ mod tests {
         rv.is_loading = true;
         rv.spinner.tick();
         assert!(rv.is_loading);
+    }
+
+    #[test]
+    fn input_starts_empty() {
+        let rv = ReplView::new();
+        assert!(rv.input.is_empty());
+        assert_eq!(rv.input.text(), "");
     }
 }
