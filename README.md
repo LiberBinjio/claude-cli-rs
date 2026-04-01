@@ -4,7 +4,7 @@
 
 **A rabbit-fast Rust reimplementation inspired by Claude Code, with native TUI, deeper tooling, and a cleaner path for terminal-first AI development.**
 
-[![Rust](https://img.shields.io/badge/Rust-2024_edition-orange?logo=rust)](https://www.rust-lang.org/)
+[![Rust](https://img.shields.io/badge/Rust-1.85+-orange?logo=rust)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 </div>
@@ -27,9 +27,7 @@
 | **SSE parse throughput** | ~40 MB/s | ~200 MB/s | **5× faster** |
 | **First token latency** | Network bound | Network bound | ~Same |
 
-> Benchmark methodology: measured on Apple M2 Pro, 16 GB RAM.  
-> Tool benchmarks use real-world codebases (Linux kernel tree for glob/grep).  
-> "First token latency" is network-bound and equivalent across implementations.
+> **Note**: numbers are projected estimates based on comparable Rust vs TypeScript benchmarks. Formal benchmarks will be added in a future release.
 
 ### Why Rust?
 
@@ -40,78 +38,169 @@
 
 ---
 
-## Installation
+## Prerequisites
 
-### From source (recommended)
+### Windows
+
+1. **Rust toolchain** (1.85+):
+   - Download and run [rustup-init.exe](https://rustup.rs/)
+   - During installation, you will be prompted to install **Visual Studio Build Tools** (select the "Desktop development with C++" workload). This is required for compiling Rust projects. If you already have Visual Studio 2019/2022 with the C++ desktop development components installed, you can skip this step.
+   - After installation, **restart your terminal** (PowerShell / CMD) and verify:
+     ```powershell
+     rustc --version   # Should show rustc 1.85.0 or higher
+     cargo --version
+     ```
+
+2. **Network proxy** (required if crates.io is unreachable):
+   If you use a local proxy (e.g. Clash, V2Ray), configure cargo to route through it:
+   ```powershell
+   # Create or edit ~/.cargo/config.toml (i.e. C:\Users\<USERNAME>\.cargo\config.toml)
+   # Add the following (change the port to match your proxy):
+   ```
+   ```toml
+   [http]
+   proxy = "http://127.0.0.1:10809"
+   [https]
+   proxy = "http://127.0.0.1:10809"
+   ```
+   Alternatively, use a mirror registry (no proxy needed):
+   ```toml
+   [source.crates-io]
+   replace-with = "ustc"
+   [source.ustc]
+   registry = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"
+   ```
+
+### macOS
 
 ```bash
-# Prerequisites: Rust 1.85+ (https://rustup.rs)
-git clone https://github.com/<your-username>/claude-cli-rs.git
+# Xcode command line tools (provides C linker)
+xcode-select --install
+
+# Rust toolchain
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env
+```
+
+### Linux (Ubuntu/Debian)
+
+```bash
+sudo apt update && sudo apt install -y build-essential pkg-config libssl-dev
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env
+```
+
+---
+
+## Installation
+
+### From source
+
+```bash
+git clone https://github.com/liberbinjio/claude-cli-rs.git
 cd claude-cli-rs
 cargo build --release
+```
 
-# Binary at: target/release/claude
-# Optionally install to PATH:
+After building, the executable is located at:
+- Windows: `target\release\claude.exe`
+- macOS/Linux: `target/release/claude`
+
+Optional: install to your system PATH (so you can run `claude` from any directory):
+```bash
 cargo install --path crates/cli
 ```
 
-### Quick install (after first release)
+### Verify Installation
 
 ```bash
-cargo install claude_cli
-```
+# Run from the project directory (no install needed)
+cargo run -- --version
+# Output: claude 0.1.0
 
-### Verify installation
+cargo run -- --help
+# Output:
+# Claude Code (Rust) — AI coding assistant
+#
+# Usage: claude.exe [OPTIONS] [PROMPT] [COMMAND]
+#
+# Commands:
+#   self-test  Run internal diagnostics
+#   help       Print this message or the help of the given subcommand(s)
+#
+# Arguments:
+#   [PROMPT]  Initial prompt to send (non-interactive when combined with --print)
+#
+# Options:
+#   -p, --print            Print the response and exit (non-interactive mode)
+#       --model <MODEL>    Model to use [default: claude-sonnet-4-20250514]
+#       --cwd <CWD>        Working directory (defaults to current directory)
+#       --resume <RESUME>  Resume a previous session by ID
+#   -v, --verbose          Enable verbose/debug logging
+#   -h, --help             Print help
+#   -V, --version          Print version
 
-```bash
+# If installed to PATH, you can run directly:
 claude --version
-# Claude Code v0.1.0
-
 claude --help
-# Claude Code - AI coding assistant
-# Usage: claude [OPTIONS] [PROMPT]
 ```
 
 ---
 
 ## Quick Start
 
+### Set API Key
+
+You must set an Anthropic API key before running:
+
+**Windows PowerShell:**
+```powershell
+$env:ANTHROPIC_API_KEY = "sk-ant-your-key-here"
+```
+
+**Windows CMD:**
+```cmd
+set ANTHROPIC_API_KEY=sk-ant-your-key-here
+```
+
+**macOS / Linux:**
+```bash
+export ANTHROPIC_API_KEY=sk-ant-your-key-here
+```
+
+> **Tip**: To persist the key, add the command to your shell profile (PowerShell: `$PROFILE`, Bash: `~/.bashrc`, Zsh: `~/.zshrc`).
+
+### Launch
+
 ```bash
 # Interactive REPL mode (default)
+cargo run
+
+# One-shot mode (print response and exit)
+cargo run -- -p "Write a Hello World in Rust"
+
+# Specify a model
+cargo run -- --model claude-sonnet-4-20250514 -p "Explain this project architecture"
+
+# Resume a previous session
+cargo run -- --resume <session-id>
+
+# If installed to PATH:
 claude
-
-# One-shot mode
-claude -p "Explain this Rust project"
-
-# With specific model
-claude --model claude-sonnet-4-20250514 -p "Write a test for auth.rs"
-
-# Resume last session
-claude --resume
+claude -p "Explain this code"
 ```
 
-### Authentication
+### Other Authentication Methods
 
 ```bash
-# Option 1: API Key (set env var)
-export ANTHROPIC_API_KEY=sk-ant-...
+# AWS Bedrock
+# Windows PowerShell:
+$env:CLAUDE_CODE_USE_BEDROCK = "1"
+$env:AWS_REGION = "us-east-1"
 
-# Option 2: OAuth login (opens browser)
-claude auth login
-
-# Option 3: AWS Bedrock
+# macOS/Linux:
 export CLAUDE_CODE_USE_BEDROCK=1
 export AWS_REGION=us-east-1
-```
-
-### Configuration
-
-```bash
-# User config: ~/.claude.json
-# Project config: .claude/settings.json
-
-claude /config set theme dark
-claude /config set model claude-sonnet-4-20250514
 ```
 
 ---
@@ -268,6 +357,7 @@ claude-cli-rs/
 │   │       ├── lib.rs
 │   │       ├── session.rs         # Session storage (JSONL save/load/list)
 │   │       ├── analytics.rs       # Event tracking (no-op by default)
+│   │       ├── cost.rs            # Token & cost tracking
 │   │       ├── compact.rs         # Compaction strategy
 │   │       ├── plugins.rs         # Plugin system skeleton
 │   │       └── tips.rs            # Usage tips
@@ -328,47 +418,83 @@ cli ──┬── core
 
 ## Development
 
+### Command Reference
+
 ```bash
-# Check all crates compile
-cargo check --workspace
+cd claude-cli-rs   # All commands must be run from the project root
 
-# Run all tests
-cargo test --workspace
+# === Build ===
+cargo check --workspace                  # Quick type-check all crates (no binary output)
+cargo build                              # Compile debug build (~7s incremental)
+cargo build --release                    # Compile release build (~3 min first time, with LTO)
 
-# Lint
-cargo clippy --workspace -- -D warnings
+# === Run ===
+cargo run                                # Launch CLI (runs target/debug/claude)
+cargo run -- --version                   # Show version
+cargo run -- --help                      # Show help
+cargo run -- -p "Your question"          # One-shot mode
+cargo run -- self-test                   # Run internal diagnostics
 
-# Format
-cargo fmt --all
+# === Test ===
+cargo test --workspace                   # Run all unit tests
+cargo test --workspace -- --test-threads=1  # Serial execution (avoids env var races)
+cargo test -p claude_core                # Run tests for a specific crate
+cargo test --test integration            # Run integration tests
 
-# Build release binary
-cargo build --release
+# === Code Quality ===
+cargo clippy --workspace -- -D warnings  # Lint (zero warnings required)
+cargo fmt --all                          # Auto-format
+cargo fmt --all -- --check               # Check formatting without modifying
 
-# Run directly
-cargo run -- --help
-cargo run -- -p "Hello, Claude"
+# === Debug ===
+cargo run -- -v                          # Verbose mode with detailed logging
+RUST_LOG=debug cargo run                 # More detailed logging (macOS/Linux)
+$env:RUST_LOG="debug"; cargo run         # More detailed logging (Windows PowerShell)
 ```
 
-### Feature flags
+### Project Stats
 
-```toml
-[features]
-default = []
-voice = []          # Voice input mode
-kairos = []         # Enterprise features
-bridge = []         # claude.ai bridge relay
-coordinator = []    # Multi-agent coordinator
-```
+| Metric | Value |
+|--------|-------|
+| Rust source files | 121 |
+| Lines of code | ~13,000 |
+| Unit tests | 523 |
+| Crates | 12 |
 
 ---
 
-## Contributing
+## Troubleshooting
 
-See [tasks/](../tasks/) for the complete development plan:
+### `cargo build` hangs or times out downloading dependencies
 
-- [CONTRACT.md](../tasks/CONTRACT.md) — Unified API contract (all type signatures)
-- [MASTER-PLAN.md](../tasks/MASTER-PLAN.md) — Task schedule & dev assignments
-- [PROGRESS.md](../tasks/PROGRESS.md) — Live progress tracking
+You may need to configure a proxy or a mirror registry. See the **Prerequisites > Network proxy** section above.
+
+### `link.exe not found` on Windows
+
+Install the C++ desktop development component of Visual Studio Build Tools. Run Visual Studio Installer, click Modify, and check "Desktop development with C++".
+
+### `cargo run` reports `error: a bin target must be available`
+
+Ensure your root `Cargo.toml` has `default-members = ["crates/cli"]`. If it does not, run:
+```bash
+cargo run --bin claude
+```
+or specify the crate:
+```bash
+cargo run -p claude_cli
+```
+
+### `error[E0658]: edition 2024 is not yet stable`
+
+Your Rust version is below 1.85. Update:
+```bash
+rustup update stable
+```
+
+### TUI displays garbled text or keys repeat
+
+- Ensure your terminal supports UTF-8 (Windows Terminal is recommended; legacy CMD is not)
+- Windows users should use **Windows Terminal** or **PowerShell 7**
 
 ---
 
