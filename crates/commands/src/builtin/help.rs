@@ -80,3 +80,65 @@ fn generate_overview() -> String {
     lines.push("Type /help <command> for more details.".to_owned());
     lines.join("\n")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_help_metadata() {
+        let cmd = HelpCommand;
+        assert_eq!(cmd.name(), "help");
+        assert!(cmd.aliases().contains(&"h"));
+        assert!(cmd.aliases().contains(&"?"));
+    }
+
+    #[tokio::test]
+    async fn test_help_no_args_returns_overview() {
+        let cmd = HelpCommand;
+        let mut ctx = CommandContext {
+            placeholder_state: (),
+            event_tx: None,
+        };
+        let result = cmd.execute("", &mut ctx).await.unwrap();
+        match result {
+            CommandResult::Handled(Some(text)) => {
+                assert!(text.contains("Available commands:"));
+                assert!(text.contains("/help"));
+                assert!(text.contains("/exit"));
+                assert!(text.contains("/model"));
+            }
+            other => panic!("expected Handled(Some), got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_help_with_args_returns_specific() {
+        let cmd = HelpCommand;
+        let mut ctx = CommandContext {
+            placeholder_state: (),
+            event_tx: None,
+        };
+        let result = cmd.execute("exit", &mut ctx).await.unwrap();
+        match result {
+            CommandResult::Handled(Some(text)) => {
+                assert!(text.contains("exit"));
+            }
+            other => panic!("expected Handled(Some), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_generate_overview_lists_all_builtins() {
+        let overview = generate_overview();
+        let expected = [
+            "help", "exit", "clear", "version", "status", "cost",
+            "model", "compact", "config", "memory", "theme", "diff",
+            "commit", "session", "resume", "permissions", "init",
+            "mcp", "vim", "voice",
+        ];
+        for name in expected {
+            assert!(overview.contains(name), "overview missing /{}", name);
+        }
+    }
+}

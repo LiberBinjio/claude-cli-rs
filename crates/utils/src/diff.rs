@@ -105,4 +105,34 @@ mod tests {
         assert!(diff.contains("-line2"));
         assert!(diff.contains("+lineX"));
     }
+
+    #[test]
+    fn test_unified_diff_has_hunk_header() {
+        let old = "a\nb\nc\n";
+        let new = "a\nB\nc\n";
+        let diff = unified_diff(old, new, "f.rs");
+        assert!(diff.contains("@@"), "unified diff must contain @@ hunk headers");
+    }
+
+    #[test]
+    fn test_apply_edit_ambiguous_count_is_exact() {
+        let content = "foo bar foo baz foo";
+        match apply_edit(content, "foo", "qux") {
+            Err(EditError::Ambiguous(n)) => assert_eq!(n, 3),
+            other => panic!("expected Ambiguous(3), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_apply_edit_replaces_with_empty() {
+        let result = apply_edit("hello world", "world", "").unwrap();
+        assert_eq!(result, "hello ");
+    }
+
+    #[test]
+    fn test_apply_edit_preserves_surrounding() {
+        let content = "AAA\nBBB\nCCC\n";
+        let result = apply_edit(content, "BBB", "XXX").unwrap();
+        assert_eq!(result, "AAA\nXXX\nCCC\n");
+    }
 }

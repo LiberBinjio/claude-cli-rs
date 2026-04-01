@@ -90,7 +90,7 @@ impl Default for ToolRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use claude_core::tool::{PermissionCheck, Tool, ToolInputSchema, ToolResult, ToolUseContext};
+    use claude_core::tool::{Tool, ToolResult, ToolUseContext};
     use serde_json::Value;
 
     struct DummyTool(&'static str);
@@ -142,5 +142,41 @@ mod tests {
         assert_eq!(schemas.len(), 1);
         assert_eq!(schemas[0]["name"], "tool1");
         assert_eq!(schemas[0]["description"], "dummy");
+    }
+
+    #[test]
+    fn test_default_trait() {
+        let reg = ToolRegistry::default();
+        assert_eq!(reg.all().len(), 0);
+        assert!(reg.names().is_empty());
+    }
+
+    #[test]
+    fn test_insertion_order_preserved() {
+        let mut reg = ToolRegistry::new();
+        reg.register(Arc::new(DummyTool("charlie")));
+        reg.register(Arc::new(DummyTool("alpha")));
+        reg.register(Arc::new(DummyTool("bravo")));
+        let names = reg.names();
+        assert_eq!(names, vec!["charlie", "alpha", "bravo"]);
+    }
+
+    #[test]
+    fn test_all_definitions_alias() {
+        let mut reg = ToolRegistry::new();
+        reg.register(Arc::new(DummyTool("t")));
+        let defs = reg.all_definitions();
+        let schemas = reg.to_api_schemas();
+        assert_eq!(defs.len(), schemas.len());
+        assert_eq!(defs[0]["name"], schemas[0]["name"]);
+    }
+
+    #[test]
+    fn test_schema_has_input_schema() {
+        let mut reg = ToolRegistry::new();
+        reg.register(Arc::new(DummyTool("mytest")));
+        let schemas = reg.to_api_schemas();
+        assert!(schemas[0].get("input_schema").is_some());
+        assert_eq!(schemas[0]["input_schema"]["type"], "object");
     }
 }

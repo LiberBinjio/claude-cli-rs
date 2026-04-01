@@ -253,4 +253,38 @@ mod tests {
         let text = result.content[0].text.as_deref().unwrap_or("");
         assert!(text.contains("timed out"));
     }
+
+    #[test]
+    fn test_write_indicators_detected() {
+        assert!(!is_read_only_bash_command("echo foo > file.txt"));
+        assert!(!is_read_only_bash_command("echo foo >> file.txt"));
+        assert!(!is_read_only_bash_command("sudo apt install vim"));
+        assert!(!is_read_only_bash_command("chmod 755 script.sh"));
+    }
+
+    #[test]
+    fn test_path_prefixed_commands() {
+        assert!(is_read_only_bash_command("/usr/bin/cat foo"));
+        assert!(is_read_only_bash_command("/bin/ls -la"));
+        assert!(is_read_only_bash_command("/usr/bin/grep pattern file"));
+    }
+
+    #[tokio::test]
+    async fn test_nonzero_exit_is_error() {
+        let tool = BashTool;
+        let mut ctx = test_ctx();
+        let cmd = if cfg!(windows) { "cmd /c exit 1" } else { "false" };
+        let input = serde_json::json!({"command": cmd});
+        let result = tool.call(input, &mut ctx).await.unwrap();
+        assert!(result.is_error, "non-zero exit should produce error result");
+    }
+
+    #[tokio::test]
+    async fn test_missing_command_param() {
+        let tool = BashTool;
+        let mut ctx = test_ctx();
+        let input = serde_json::json!({});
+        let result = tool.call(input, &mut ctx).await;
+        assert!(result.is_err(), "missing command should return Err");
+    }
 }

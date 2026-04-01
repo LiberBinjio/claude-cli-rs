@@ -140,4 +140,31 @@ mod tests {
         assert!(summary.contains("300"));
         assert!(summary.contains("$"));
     }
+
+    #[test]
+    fn test_cost_with_cache_tokens() {
+        let mut tracker = CostTracker::new();
+        tracker.total_input_tokens = 1_000_000;
+        tracker.total_cache_read_tokens = 1_000_000;
+        tracker.total_cache_write_tokens = 1_000_000;
+        let cost = tracker.total_cost_usd("claude-sonnet-4-20250514");
+        // $3 (input) + $0 (output) + $0.30 (cache_read) + $3.75 (cache_write) = $7.05
+        assert!((cost - 7.05).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_cost_zero_tokens() {
+        let tracker = CostTracker::new();
+        let cost = tracker.total_cost_usd("claude-sonnet-4-20250514");
+        assert!((cost - 0.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_default_is_zeroed() {
+        let tracker = CostTracker::default();
+        assert_eq!(tracker.total_input_tokens, 0);
+        assert_eq!(tracker.total_output_tokens, 0);
+        assert_eq!(tracker.total_cache_read_tokens, 0);
+        assert_eq!(tracker.total_cache_write_tokens, 0);
+    }
 }

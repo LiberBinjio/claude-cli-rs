@@ -54,7 +54,11 @@ impl StdioTransport {
     }
 
     /// Send a JSON-RPC request, appending a newline.
+    ///
+    /// Checks the subprocess is still running before writing. Returns an error
+    /// if the process has already exited.
     pub async fn send_request(&mut self, request: &JsonRpcRequest) -> anyhow::Result<()> {
+        self.check_process_alive()?;
         let mut payload = serde_json::to_string(request)?;
         payload.push('\n');
         self.stdin.write_all(payload.as_bytes()).await?;
@@ -64,10 +68,13 @@ impl StdioTransport {
     }
 
     /// Send a JSON-RPC notification (no id, no response expected), appending a newline.
+    ///
+    /// Checks the subprocess is still running before writing.
     pub async fn send_notification(
         &mut self,
         notification: &JsonRpcNotification,
     ) -> anyhow::Result<()> {
+        self.check_process_alive()?;
         let mut payload = serde_json::to_string(notification)?;
         payload.push('\n');
         self.stdin.write_all(payload.as_bytes()).await?;
@@ -95,6 +102,21 @@ impl StdioTransport {
             }
             Ok(Err(e)) => Err(e.into()),
             Err(_) => anyhow::bail!("timed out waiting for MCP server response (30s)"),
+        }
+    }
+
+    /// Check that the child process has not exited.
+    ///
+    /// This is called before each write to avoid writing to a dead pipe.
+    fn check_process_alive(&mut self) -> anyhow::Result<()> {
+        match self.child.try_wait() {
+            Ok(Some(status)) => {
+                anyhow::bail!("MCP server process exited with status: {status}");
+            }
+            Ok(None) => Ok(()), // still running
+            Err(e) => {
+                anyhow::bail!("failed to check MCP server process status: {e}");
+            }
         }
     }
 

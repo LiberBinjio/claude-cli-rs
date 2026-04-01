@@ -249,6 +249,33 @@ mod tests {
         assert_eq!(engine.system_prompt, "Custom prompt");
     }
 
+    #[test]
+    fn test_new_engine_system_prompt_contains_key_sections() {
+        let engine = make_engine();
+        assert!(engine.system_prompt.contains("Claude"));
+        assert!(engine.system_prompt.contains("Platform:"));
+        assert!(engine.system_prompt.contains("Architecture:"));
+    }
+
+    #[test]
+    fn test_new_engine_model_is_default() {
+        let engine = make_engine();
+        assert_eq!(engine.model, "claude-sonnet-4-20250514");
+    }
+
+    #[test]
+    fn test_new_engine_cwd_matches() {
+        let engine = make_engine();
+        assert_eq!(engine.cwd, std::path::PathBuf::from("."));
+    }
+
+    #[test]
+    fn test_new_engine_compact_config_defaults() {
+        let engine = make_engine();
+        assert_eq!(engine.compact_config.threshold, 100_000);
+        assert_eq!(engine.compact_config.keep_recent, 10);
+    }
+
     #[tokio::test]
     async fn test_process_unknown_slash_command() {
         let mut engine = make_engine();
@@ -264,5 +291,18 @@ mod tests {
             event,
             QueryEvent::Error { .. } | QueryEvent::QueryComplete
         ));
+    }
+
+    #[tokio::test]
+    async fn test_process_regular_input_adds_user_message() {
+        let mut engine = make_engine();
+        let (tx, mut rx) = mpsc::channel(32);
+        // This will fail on the API call but should at least add the user message
+        let _ = engine.process_user_input("hello".to_string(), tx).await;
+        assert!(!engine.messages().is_empty());
+        assert_eq!(engine.messages()[0].role, claude_core::message::Role::User);
+        assert_eq!(engine.messages()[0].text(), "hello");
+        // Drain events
+        while rx.try_recv().is_ok() {}
     }
 }

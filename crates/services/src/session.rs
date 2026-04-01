@@ -214,5 +214,82 @@ mod tests {
             .map(|l| serde_json::from_str(l).unwrap())
             .collect();
         assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].role, claude_core::Role::User);
+        match &loaded[0].content[0] {
+            claude_core::ContentBlock::Text { text } => assert_eq!(text, "hello"),
+            other => panic!("expected Text, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_save_load_multiple_messages() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_dir = dir.path().join("sessions");
+        tokio::fs::create_dir_all(&session_dir).await.unwrap();
+
+        let msgs = vec![
+            claude_core::Message {
+                role: claude_core::Role::User,
+                content: vec![claude_core::ContentBlock::Text {
+                    text: "question".into(),
+                }],
+                cache_control: None,
+            },
+            claude_core::Message {
+                role: claude_core::Role::Assistant,
+                content: vec![claude_core::ContentBlock::Text {
+                    text: "answer".into(),
+                }],
+                cache_control: None,
+            },
+        ];
+
+        let id = "multi_msg";
+        let msg_path = session_dir.join(format!("{id}.jsonl"));
+        let mut content = String::new();
+        for msg in &msgs {
+            content.push_str(&serde_json::to_string(msg).unwrap());
+            content.push('\n');
+        }
+        tokio::fs::write(&msg_path, &content).await.unwrap();
+
+        let raw = tokio::fs::read_to_string(&msg_path).await.unwrap();
+        let loaded: Vec<claude_core::Message> = raw
+            .lines()
+            .filter(|l| !l.trim().is_empty())
+            .map(|l| serde_json::from_str(l).unwrap())
+            .collect();
+        assert_eq!(loaded.len(), 2);
+        assert_eq!(loaded[0].role, claude_core::Role::User);
+        assert_eq!(loaded[1].role, claude_core::Role::Assistant);
+    }
+
+    #[test]
+    fn test_session_metadata_serde_roundtrip() {
+        let meta = SessionMetadata {
+            id: "abc-123".into(),
+            created_at: 1700000000.0,
+            updated_at: 1700000100.0,
+            message_count: 5,
+            title: Some("Test session".into()),
+            cwd: "/home/user".into(),
+        };
+        let json = serde_json::to_string(&meta).unwrap();
+        let loaded: SessionMetadata = serde_json::from_str(&json).unwrap();
+        assert_eq!(loaded.id, "abc-123");
+        assert_eq!(loaded.message_count, 5);
+        assert_eq!(loaded.title, Some("Test session".into()));
+    }
+
+    #[test]
+    fn test_extract_title_skips_assistant() {
+        let msgs = vec![claude_core::Message {
+            role: claude_core::Role::Assistant,
+            content: vec![claude_core::ContentBlock::Text {
+                text: "I am the assistant".into(),
+            }],
+            cache_control: None,
+        }];
+        assert_eq!(extract_title(&msgs), None);
     }
 }

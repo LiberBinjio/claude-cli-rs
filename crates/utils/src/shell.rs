@@ -158,5 +158,64 @@ mod tests {
     fn test_get_default_shell() {
         let shell = get_default_shell();
         assert!(!shell.is_empty());
+        if cfg!(windows) {
+            assert_eq!(shell, "cmd");
+        } else {
+            assert_eq!(shell, "/bin/bash");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_exit_code() {
+        let cmd = ShellCommand {
+            command: if cfg!(windows) {
+                "exit /b 42".into()
+            } else {
+                "exit 42".into()
+            },
+            cwd: None,
+            timeout: Some(Duration::from_secs(5)),
+            env: HashMap::new(),
+        };
+        let result = execute_shell(&cmd).await.unwrap();
+        assert!(!result.timed_out);
+        assert_eq!(result.exit_code, Some(42));
+    }
+
+    #[tokio::test]
+    async fn test_execute_with_env() {
+        let mut env = HashMap::new();
+        env.insert("MY_TEST_VAR".into(), "hello123".into());
+        let cmd = ShellCommand {
+            command: if cfg!(windows) {
+                "echo %MY_TEST_VAR%".into()
+            } else {
+                "echo $MY_TEST_VAR".into()
+            },
+            cwd: None,
+            timeout: Some(Duration::from_secs(5)),
+            env,
+        };
+        let result = execute_shell(&cmd).await.unwrap();
+        assert!(result.stdout.contains("hello123"));
+    }
+
+    #[tokio::test]
+    async fn test_execute_with_cwd() {
+        let dir = tempfile::tempdir().unwrap();
+        let cmd = ShellCommand {
+            command: if cfg!(windows) {
+                "cd".into()
+            } else {
+                "pwd".into()
+            },
+            cwd: Some(dir.path().to_path_buf()),
+            timeout: Some(Duration::from_secs(5)),
+            env: HashMap::new(),
+        };
+        let result = execute_shell(&cmd).await.unwrap();
+        assert!(!result.timed_out);
+        // stdout should contain the temp dir path
+        assert!(!result.stdout.trim().is_empty());
     }
 }

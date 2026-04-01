@@ -365,4 +365,65 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn test_oauth_tokens_serde_roundtrip() {
+        let tokens = OAuthTokens {
+            access_token: "acc_xyz".into(),
+            refresh_token: "ref_abc".into(),
+            expires_at: 1700000000,
+        };
+        let json = serde_json::to_string(&tokens).expect("serialize");
+        let deser: OAuthTokens = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(deser.access_token, "acc_xyz");
+        assert_eq!(deser.refresh_token, "ref_abc");
+        assert_eq!(deser.expires_at, 1700000000);
+    }
+
+    #[test]
+    fn test_authorization_url_format() {
+        let flow = OAuthFlow {
+            client_id: "test-client".into(),
+            redirect_uri: "http://127.0.0.1:19485/oauth/callback".into(),
+            code_verifier: "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk".into(),
+        };
+        let url = flow.authorization_url("org:read");
+        assert!(url.starts_with("https://console.anthropic.com/oauth/authorize?"));
+        assert!(url.contains("client_id=test-client"));
+        assert!(url.contains("code_challenge_method=S256"));
+        assert!(url.contains("response_type=code"));
+        assert!(url.contains("scope=org%3Aread"));
+    }
+
+    #[test]
+    fn test_is_token_expired_boundary() {
+        let now_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        // Token that expires in 30s (within 60s buffer) -- should be "expired"
+        let almost = OAuthTokens {
+            access_token: "a".into(),
+            refresh_token: "r".into(),
+            expires_at: now_secs + 30,
+        };
+        assert!(is_token_expired(&almost), "should be expired within 60s buffer");
+
+        // Token that expires in 120s (outside 60s buffer) -- should be valid
+        let ample = OAuthTokens {
+            access_token: "a".into(),
+            refresh_token: "r".into(),
+            expires_at: now_secs + 120,
+        };
+        assert!(!is_token_expired(&ample), "should not be expired with 120s left");
+    }
+
+    #[test]
+    fn test_urlencoding_special_chars() {
+        assert_eq!(urlencoding("hello"), "hello");
+        assert_eq!(urlencoding("a b"), "a%20b");
+        assert_eq!(urlencoding("a+b"), "a%2Bb");
+        assert_eq!(urlencoding("org:read"), "org%3Aread");
+    }
 }

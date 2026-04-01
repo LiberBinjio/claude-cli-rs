@@ -1,9 +1,29 @@
 //! Multi-line text-input widget with cursor movement and command history.
+//!
+//! `cursor_col` is always a **character index**, not a byte offset. All
+//! `String` mutations go through [`char_to_byte_index`] so that multi-byte
+//! characters (CJK, emoji, etc.) are handled correctly.
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 /// Maximum number of history entries to retain.
 const MAX_HISTORY: usize = 100;
+
+/// Convert a character position to a byte offset within `s`.
+/// Returns `s.len()` when `char_idx` is past the last character.
+#[inline]
+fn char_to_byte_index(s: &str, char_idx: usize) -> usize {
+    s.char_indices()
+        .nth(char_idx)
+        .map(|(i, _)| i)
+        .unwrap_or(s.len())
+}
+
+/// Number of characters in `s` (not bytes).
+#[inline]
+fn char_count(s: &str) -> usize {
+    s.chars().count()
+}
 
 /// A multi-line editable text buffer with cursor tracking.
 #[derive(Debug, Clone)]
@@ -71,7 +91,8 @@ impl PromptInput {
             }
             // New line
             (KeyCode::Enter, _) => {
-                let rest = self.lines[self.cursor_row].split_off(self.cursor_col);
+                let byte_idx = char_to_byte_index(&self.lines[self.cursor_row], self.cursor_col);
+                let rest = self.lines[self.cursor_row].split_off(byte_idx);
                 self.cursor_row += 1;
                 self.cursor_col = 0;
                 self.lines.insert(self.cursor_row, rest);
@@ -80,18 +101,22 @@ impl PromptInput {
             (KeyCode::Backspace, _) => {
                 if self.cursor_col > 0 {
                     self.cursor_col -= 1;
-                    self.lines[self.cursor_row].remove(self.cursor_col);
+                    let byte_idx =
+                        char_to_byte_index(&self.lines[self.cursor_row], self.cursor_col);
+                    self.lines[self.cursor_row].remove(byte_idx);
                 } else if self.cursor_row > 0 {
                     let line = self.lines.remove(self.cursor_row);
                     self.cursor_row -= 1;
-                    self.cursor_col = self.lines[self.cursor_row].len();
+                    self.cursor_col = char_count(&self.lines[self.cursor_row]);
                     self.lines[self.cursor_row].push_str(&line);
                 }
             }
             // Delete
             (KeyCode::Delete, _) => {
-                if self.cursor_col < self.lines[self.cursor_row].len() {
-                    self.lines[self.cursor_row].remove(self.cursor_col);
+                if self.cursor_col < char_count(&self.lines[self.cursor_row]) {
+                    let byte_idx =
+                        char_to_byte_index(&self.lines[self.cursor_row], self.cursor_col);
+                    self.lines[self.cursor_row].remove(byte_idx);
                 } else if self.cursor_row + 1 < self.lines.len() {
                     let next = self.lines.remove(self.cursor_row + 1);
                     self.lines[self.cursor_row].push_str(&next);
@@ -104,14 +129,15 @@ impl PromptInput {
                 }
             }
             (KeyCode::Right, _) => {
-                if self.cursor_col < self.lines[self.cursor_row].len() {
+                if self.cursor_col < char_count(&self.lines[self.cursor_row]) {
                     self.cursor_col += 1;
                 }
             }
             (KeyCode::Up, _) => {
                 if self.cursor_row > 0 {
                     self.cursor_row -= 1;
-                    self.cursor_col = self.cursor_col.min(self.lines[self.cursor_row].len());
+                    self.cursor_col =
+                        self.cursor_col.min(char_count(&self.lines[self.cursor_row]));
                 } else {
                     self.navigate_history_up();
                 }
@@ -119,7 +145,8 @@ impl PromptInput {
             (KeyCode::Down, _) => {
                 if self.cursor_row + 1 < self.lines.len() {
                     self.cursor_row += 1;
-                    self.cursor_col = self.cursor_col.min(self.lines[self.cursor_row].len());
+                    self.cursor_col =
+                        self.cursor_col.min(char_count(&self.lines[self.cursor_row]));
                 } else {
                     self.navigate_history_down();
                 }
@@ -129,11 +156,13 @@ impl PromptInput {
                 self.cursor_col = 0;
             }
             (KeyCode::End, _) => {
-                self.cursor_col = self.lines[self.cursor_row].len();
+                self.cursor_col = char_count(&self.lines[self.cursor_row]);
             }
             // Printable character
             (KeyCode::Char(c), _) => {
-                self.lines[self.cursor_row].insert(self.cursor_col, c);
+                let byte_idx =
+                    char_to_byte_index(&self.lines[self.cursor_row], self.cursor_col);
+                self.lines[self.cursor_row].insert(byte_idx, c);
                 self.cursor_col += 1;
             }
             _ => {}
@@ -192,7 +221,7 @@ impl PromptInput {
     fn load_history_entry(&mut self, idx: usize) {
         self.lines = self.history[idx].split('\n').map(String::from).collect();
         self.cursor_row = self.lines.len() - 1;
-        self.cursor_col = self.lines[self.cursor_row].len();
+        self.cursor_col = char_count(&self.lines[self.cursor_row]);
     }
 }
 
@@ -324,5 +353,77 @@ mod tests {
         assert_eq!(inp.cursor(), (0, 1));
         inp.handle_key(key(KeyCode::Right));
         assert_eq!(inp.cursor(), (0, 2));
+    }
+
+    #[test]
+    fn chinese_input() {
+        let mut inp = PromptInput::new();
+        inp.handle_key(key(KeyCode::Char('你')));
+        inp.handle_key(key(KeyCode::Char('好')));
+        assert_eq!(inp.text(), "你好");
+        assert_eq!(inp.cursor(), (0, 2));
+    }
+
+    #[test]
+    fn mixed_ascii_chinese() {
+        let mut inp = PromptInput::new();
+        inp.handle_key(key(KeyCode::Char('a')));
+        inp.handle_key(key(KeyCode::Char('中')));
+        inp.handle_key(key(KeyCode::Char('b')));
+        assert_eq!(inp.text(), "a中b");
+        assert_eq!(inp.cursor(), (0, 3));
+    }
+
+    #[test]
+    fn backspace_chinese() {
+        let mut inp = PromptInput::new();
+        inp.handle_key(key(KeyCode::Char('你')));
+        inp.handle_key(key(KeyCode::Char('好')));
+        inp.handle_key(key(KeyCode::Backspace));
+        assert_eq!(inp.text(), "你");
+        assert_eq!(inp.cursor(), (0, 1));
+    }
+
+    #[test]
+    fn delete_chinese() {
+        let mut inp = PromptInput::new();
+        inp.handle_key(key(KeyCode::Char('你')));
+        inp.handle_key(key(KeyCode::Char('好')));
+        inp.handle_key(key(KeyCode::Home));
+        inp.handle_key(key(KeyCode::Delete));
+        assert_eq!(inp.text(), "好");
+    }
+
+    #[test]
+    fn emoji_input() {
+        let mut inp = PromptInput::new();
+        inp.handle_key(key(KeyCode::Char('🎉')));
+        inp.handle_key(key(KeyCode::Char('a')));
+        assert_eq!(inp.text(), "🎉a");
+        assert_eq!(inp.cursor(), (0, 2));
+    }
+
+    #[test]
+    fn cursor_movement_chinese() {
+        let mut inp = PromptInput::new();
+        inp.handle_key(key(KeyCode::Char('你')));
+        inp.handle_key(key(KeyCode::Char('好')));
+        inp.handle_key(key(KeyCode::Char('世')));
+        inp.handle_key(key(KeyCode::Left));
+        inp.handle_key(key(KeyCode::Left));
+        assert_eq!(inp.cursor(), (0, 1));
+        // Insert at position 1
+        inp.handle_key(key(KeyCode::Char('X')));
+        assert_eq!(inp.text(), "你X好世");
+    }
+
+    #[test]
+    fn shift_enter_with_chinese() {
+        let mut inp = PromptInput::new();
+        inp.handle_key(key(KeyCode::Char('你')));
+        inp.handle_key(shift_key(KeyCode::Enter));
+        inp.handle_key(key(KeyCode::Char('好')));
+        assert_eq!(inp.text(), "你\n好");
+        assert_eq!(inp.line_count(), 2);
     }
 }

@@ -261,4 +261,147 @@ mod tests {
         assert!(json.contains(r#""type":"base64""#));
         assert!(json.contains(r#""media_type":"image/png""#));
     }
+
+    #[test]
+    fn test_message_full_roundtrip_all_fields() {
+        let msg = Message {
+            role: Role::Assistant,
+            content: vec![
+                ContentBlock::Text { text: "thinking...".into() },
+                ContentBlock::ToolUse {
+                    id: "tu_99".into(),
+                    name: "Bash".into(),
+                    input: serde_json::json!({"command": "echo hello"}),
+                },
+            ],
+            cache_control: Some(CacheControl {
+                cache_type: "ephemeral".into(),
+            }),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        let parsed: Message = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.role, Role::Assistant);
+        assert_eq!(parsed.content.len(), 2);
+        assert!(parsed.cache_control.is_some());
+        assert_eq!(parsed.cache_control.unwrap().cache_type, "ephemeral");
+        if let ContentBlock::ToolUse { id, name, input } = &parsed.content[1] {
+            assert_eq!(id, "tu_99");
+            assert_eq!(name, "Bash");
+            assert_eq!(input["command"], "echo hello");
+        } else {
+            panic!("expected ToolUse");
+        }
+    }
+
+    #[test]
+    fn test_content_block_type_tag_in_json() {
+        // Verify the "type" discriminator appears in serialized JSON for each variant
+        let text = ContentBlock::Text { text: "x".into() };
+        let json = serde_json::to_string(&text).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(v["type"], "text");
+
+        let tool_use = ContentBlock::ToolUse {
+            id: "t1".into(),
+            name: "N".into(),
+            input: serde_json::json!({}),
+        };
+        let v: serde_json::Value = serde_json::from_str(
+            &serde_json::to_string(&tool_use).unwrap(),
+        ).unwrap();
+        assert_eq!(v["type"], "tool_use");
+
+        let tool_result = ContentBlock::ToolResult {
+            tool_use_id: "t1".into(),
+            content: vec![],
+            is_error: None,
+        };
+        let v: serde_json::Value = serde_json::from_str(
+            &serde_json::to_string(&tool_result).unwrap(),
+        ).unwrap();
+        assert_eq!(v["type"], "tool_result");
+
+        let image = ContentBlock::Image {
+            source: ImageSource {
+                source_type: "base64".into(),
+                media_type: "image/png".into(),
+                data: "AA==".into(),
+            },
+        };
+        let v: serde_json::Value = serde_json::from_str(
+            &serde_json::to_string(&image).unwrap(),
+        ).unwrap();
+        assert_eq!(v["type"], "image");
+    }
+
+    #[test]
+    fn test_empty_content_list_roundtrip() {
+        let msg = Message {
+            role: Role::User,
+            content: vec![],
+            cache_control: None,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        let parsed: Message = serde_json::from_str(&json).unwrap();
+        assert!(parsed.content.is_empty());
+        assert_eq!(parsed.text(), "");
+    }
+
+    #[test]
+    fn test_special_characters_chinese_emoji() {
+        let msg = Message::user("你好世界 🎉🚀 café");
+        let json = serde_json::to_string(&msg).unwrap();
+        let parsed: Message = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.text(), "你好世界 🎉🚀 café");
+    }
+
+    #[test]
+    fn test_long_text_roundtrip() {
+        let long = "a".repeat(100_000);
+        let msg = Message::user(&long);
+        let json = serde_json::to_string(&msg).unwrap();
+        let parsed: Message = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.text().len(), 100_000);
+    }
+
+    #[test]
+    fn test_tool_result_is_error_none_skipped() {
+        let block = ContentBlock::ToolResult {
+            tool_use_id: "t1".into(),
+            content: vec![],
+            is_error: None,
+        };
+        let json = serde_json::to_string(&block).unwrap();
+        assert!(!json.contains("is_error"));
+    }
+
+    #[test]
+    fn test_tool_result_content_text() {
+        let tc = ToolResultContent {
+            content_type: "text".into(),
+            text: Some("result output".into()),
+        };
+        let json = serde_json::to_string(&tc).unwrap();
+        let parsed: ToolResultContent = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.content_type, "text");
+        assert_eq!(parsed.text.as_deref(), Some("result output"));
+    }
+
+    #[test]
+    fn test_message_text_concat_multiple_blocks() {
+        let msg = Message {
+            role: Role::Assistant,
+            content: vec![
+                ContentBlock::Text { text: "part1".into() },
+                ContentBlock::ToolUse {
+                    id: "x".into(),
+                    name: "y".into(),
+                    input: serde_json::json!({}),
+                },
+                ContentBlock::Text { text: "part2".into() },
+            ],
+            cache_control: None,
+        };
+        assert_eq!(msg.text(), "part1part2");
+    }
 }

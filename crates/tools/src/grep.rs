@@ -201,4 +201,27 @@ mod tests {
         let text = result.content[0].text.as_deref().unwrap_or("");
         assert!(text.contains("GrepTool"));
     }
+
+    #[tokio::test]
+    async fn test_grep_missing_pattern() {
+        let tool = GrepTool;
+        let mut ctx = test_ctx();
+        let input = serde_json::json!({});
+        let result = tool.call(input, &mut ctx).await;
+        assert!(result.is_err(), "missing pattern should return Err");
+    }
+
+    #[test]
+    fn test_read_only_always() {
+        let tool = GrepTool;
+        // Grep is read-only regardless of input
+        assert!(tool.is_read_only(&serde_json::json!({"pattern": "rm -rf /"})));
+    }
+
+    #[test]
+    fn test_build_command_no_include() {
+        let cmd = build_search_command("TODO", ".", None);
+        assert!(cmd.contains("TODO"));
+        assert!(!cmd.contains("--include"), "no include flag without pattern");
+    }
 }

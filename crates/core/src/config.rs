@@ -118,4 +118,67 @@ mod tests {
         assert!(json.contains("test"));
         assert!(json.contains("node"));
     }
+
+    #[test]
+    fn test_default_model_names_exact() {
+        let config = AppConfig::default();
+        assert_eq!(config.model, "claude-sonnet-4-20250514");
+        assert_eq!(config.small_fast_model, "claude-haiku-4-20250414");
+    }
+
+    #[test]
+    fn test_default_optional_fields_none() {
+        let config = AppConfig::default();
+        assert!(config.api_key.is_none());
+        assert!(config.custom_api_url.is_none());
+        assert!(config.max_cost_usd.is_none());
+        assert!(config.custom_system_prompt.is_none());
+    }
+
+    #[test]
+    fn test_default_collections_empty() {
+        let config = AppConfig::default();
+        assert!(config.permission_rules.is_empty());
+        assert!(config.mcp_servers.is_empty());
+        assert!(config.env.is_empty());
+    }
+
+    #[test]
+    fn test_config_with_env_vars_roundtrip() {
+        let mut config = AppConfig::default();
+        config.env.insert("FOO".into(), "bar".into());
+        config.env.insert("BAZ".into(), "qux".into());
+        let json = serde_json::to_string(&config).unwrap();
+        let parsed: AppConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.env.get("FOO").unwrap(), "bar");
+        assert_eq!(parsed.env.get("BAZ").unwrap(), "qux");
+    }
+
+    #[test]
+    fn test_config_custom_system_prompt_roundtrip() {
+        let mut config = AppConfig::default();
+        config.custom_system_prompt = Some("Be concise.".into());
+        let json = serde_json::to_string(&config).unwrap();
+        let parsed: AppConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(
+            parsed.custom_system_prompt.as_deref(),
+            Some("Be concise.")
+        );
+    }
+
+    #[test]
+    fn test_mcp_server_config_with_env() {
+        let cfg = McpServerConfig {
+            command: "node".into(),
+            args: vec!["index.js".into()],
+            env: {
+                let mut m = HashMap::new();
+                m.insert("PORT".into(), "3000".into());
+                m
+            },
+        };
+        let json = serde_json::to_string(&cfg).unwrap();
+        let parsed: McpServerConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.env.get("PORT").unwrap(), "3000");
+    }
 }

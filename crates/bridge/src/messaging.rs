@@ -196,4 +196,40 @@ mod tests {
         assert!(BridgeMessage::from_json("not json").is_err());
         assert!(BridgeMessage::from_json(r#"{"type":"unknown"}"#).is_err());
     }
+
+    #[test]
+    fn tool_result_error_flag() {
+        let msg = BridgeMessage::ToolResult {
+            request_id: "r1".to_owned(),
+            output: "something went wrong".to_owned(),
+            is_error: true,
+        };
+        let json = msg.to_json().unwrap();
+        let parsed = BridgeMessage::from_json(&json).unwrap();
+        match parsed {
+            BridgeMessage::ToolResult {
+                is_error, output, ..
+            } => {
+                assert!(is_error);
+                assert_eq!(output, "something went wrong");
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn register_with_empty_capabilities() {
+        let msg = BridgeMessage::EnvironmentRegister {
+            environment_id: "e".to_owned(),
+            capabilities: vec![],
+        };
+        let json = msg.to_json().unwrap();
+        let parsed = BridgeMessage::from_json(&json).unwrap();
+        match parsed {
+            BridgeMessage::EnvironmentRegister { capabilities, .. } => {
+                assert!(capabilities.is_empty());
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
 }

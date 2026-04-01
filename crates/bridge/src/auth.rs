@@ -103,4 +103,36 @@ mod tests {
         assert_eq!(parsed.environment_id, creds.environment_id);
         assert_eq!(parsed.expires_at, creds.expires_at);
     }
+
+    #[test]
+    fn decode_jwt_claims_with_standard_padding() {
+        // Payload with standard base64url (with padding might work too)
+        let payload_json = r#"{"iss":"test","aud":"cli"}"#;
+        let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(payload_json.as_bytes());
+        let jwt = format!("header.{encoded}.sig");
+        let claims = decode_jwt_claims(&jwt).unwrap();
+        assert_eq!(claims["iss"], "test");
+        assert_eq!(claims["aud"], "cli");
+    }
+
+    #[test]
+    fn decode_jwt_claims_too_few_parts() {
+        let result = decode_jwt_claims("only.two");
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("3 dot-separated parts"), "error: {err}");
+    }
+
+    #[test]
+    fn decode_jwt_claims_too_many_parts() {
+        let result = decode_jwt_claims("a.b.c.d");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn decode_jwt_claims_invalid_base64() {
+        let result = decode_jwt_claims("h.!!!invalid!!!.s");
+        assert!(result.is_err());
+    }
 }

@@ -78,6 +78,7 @@ mod tests {
             cwd: Some(".".into()),
             resume: None,
             verbose: false,
+            command: None,
         };
         let result = setup(&args);
         // Should fail on authentication (no ANTHROPIC_API_KEY set in test env)

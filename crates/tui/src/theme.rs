@@ -181,4 +181,33 @@ mod tests {
         // At least verify it doesn't panic and produces a valid theme
         assert_ne!(format!("{:?}", t.fg), "");
     }
+
+    #[test]
+    fn dark_and_light_differ() {
+        let d = Theme::dark();
+        let l = Theme::light();
+        assert_ne!(d.fg, l.fg);
+        assert_ne!(d.primary, l.primary);
+        assert_ne!(d.cursor, l.cursor);
+    }
+
+    #[test]
+    fn dark_theme_semantic_colours_distinct() {
+        let t = Theme::dark();
+        assert_ne!(t.success, t.error);
+        assert_ne!(t.warning, t.info);
+    }
+
+    #[test]
+    fn auto_no_colorfgbg_is_dark() {
+        // Remove COLORFGBG if present, verify we get dark defaults
+        let had = std::env::var("COLORFGBG").ok();
+        // SAFETY: test is single-threaded per test function; no concurrent env access
+        unsafe { std::env::remove_var("COLORFGBG") };
+        let t = Theme::from_name(ThemeName::Auto);
+        assert_eq!(t.fg, Color::White); // dark theme has white fg
+        if let Some(v) = had {
+            unsafe { std::env::set_var("COLORFGBG", v) };
+        }
+    }
 }

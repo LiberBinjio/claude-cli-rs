@@ -222,4 +222,117 @@ mod tests {
         let parsed: PermissionMode = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed, PermissionMode::FullAuto);
     }
+
+    #[test]
+    fn test_all_permission_modes_serde_roundtrip() {
+        let modes = [
+            PermissionMode::Default,
+            PermissionMode::Plan,
+            PermissionMode::AutoEdit,
+            PermissionMode::FullAuto,
+            PermissionMode::BypassPermissions,
+        ];
+        for mode in &modes {
+            let json = serde_json::to_string(mode).unwrap();
+            let parsed: PermissionMode = serde_json::from_str(&json).unwrap();
+            assert_eq!(&parsed, mode);
+        }
+    }
+
+    #[test]
+    fn test_default_wildcard_deny() {
+        let rules = vec![PermissionRule {
+            tool_name: "*".into(),
+            allow: false,
+            path_pattern: None,
+            command_pattern: None,
+        }];
+        assert_eq!(
+            check_permission(PermissionMode::Default, "Bash", false, &rules),
+            PermissionDecision::Deny
+        );
+        assert_eq!(
+            check_permission(PermissionMode::Default, "FileEdit", true, &rules),
+            PermissionDecision::Deny
+        );
+    }
+
+    #[test]
+    fn test_autoedit_allows_readonly() {
+        assert_eq!(
+            check_permission(PermissionMode::AutoEdit, "ReadFile", true, &[]),
+            PermissionDecision::Allow
+        );
+    }
+
+    #[test]
+    fn test_plan_with_rule_still_denies_writes() {
+        let rules = vec![PermissionRule {
+            tool_name: "Bash".into(),
+            allow: true,
+            path_pattern: None,
+            command_pattern: None,
+        }];
+        // Plan mode ignores rules — writes are always denied
+        assert_eq!(
+            check_permission(PermissionMode::Plan, "Bash", false, &rules),
+            PermissionDecision::Deny
+        );
+    }
+
+    #[test]
+    fn test_bypass_ignores_deny_rule() {
+        let rules = vec![PermissionRule {
+            tool_name: "Bash".into(),
+            allow: false,
+            path_pattern: None,
+            command_pattern: None,
+        }];
+        assert_eq!(
+            check_permission(PermissionMode::BypassPermissions, "Bash", false, &rules),
+            PermissionDecision::Allow
+        );
+    }
+
+    #[test]
+    fn test_default_first_matching_rule_wins() {
+        let rules = vec![
+            PermissionRule {
+                tool_name: "Bash".into(),
+                allow: true,
+                path_pattern: None,
+                command_pattern: None,
+            },
+            PermissionRule {
+                tool_name: "Bash".into(),
+                allow: false,
+                path_pattern: None,
+                command_pattern: None,
+            },
+        ];
+        // First matching rule wins (allow)
+        assert_eq!(
+            check_permission(PermissionMode::Default, "Bash", false, &rules),
+            PermissionDecision::Allow
+        );
+    }
+
+    #[test]
+    fn test_permission_rule_serde_roundtrip() {
+        let rule = PermissionRule {
+            tool_name: "Bash".into(),
+            allow: true,
+            path_pattern: Some("/tmp/*".into()),
+            command_pattern: None,
+        };
+        let json = serde_json::to_string(&rule).unwrap();
+        let parsed: PermissionRule = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.tool_name, "Bash");
+        assert!(parsed.allow);
+        assert_eq!(parsed.path_pattern.as_deref(), Some("/tmp/*"));
+        assert!(parsed.command_pattern.is_none());
+        // path_pattern is present, command_pattern skipped
+        assert!(json.contains("path_pattern"));
+        assert!(!json.contains("command_pattern"));
+    }
 }

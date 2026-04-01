@@ -182,4 +182,74 @@ mod tests {
         // Should be truncated to ~200 chars + prefix
         assert!(summary.len() < 400);
     }
+
+    #[test]
+    fn test_estimate_tokens_increases_with_length() {
+        let short = vec![Message::user("hi")];
+        let long = vec![Message::user(&"x".repeat(4000))];
+        let short_tokens = estimate_messages_tokens(&short);
+        let long_tokens = estimate_messages_tokens(&long);
+        assert!(long_tokens > short_tokens);
+        // 4000 chars / 4 ≈ 1000 tokens
+        assert!(long_tokens >= 1000);
+    }
+
+    #[test]
+    fn test_estimate_tokens_tool_use() {
+        let msgs = vec![Message {
+            role: Role::Assistant,
+            content: vec![ContentBlock::ToolUse {
+                id: "t1".into(),
+                name: "Bash".into(),
+                input: serde_json::json!({"command": "ls -la"}),
+            }],
+            cache_control: None,
+        }];
+        let tokens = estimate_messages_tokens(&msgs);
+        assert!(tokens > 0);
+    }
+
+    #[test]
+    fn test_compact_empty_list() {
+        let config = CompactConfig {
+            threshold: 0,
+            keep_recent: 5,
+        };
+        let result = compact_messages(&[], &config);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_summary_includes_both_roles() {
+        let msgs = vec![
+            Message::user("What is Rust?"),
+            Message::assistant("Rust is a systems programming language."),
+            Message::user("Tell me more."),
+            Message::assistant("It focuses on safety and performance."),
+        ];
+        let summary = generate_summary(&msgs);
+        assert!(summary.contains("User: What is Rust?"));
+        assert!(summary.contains("Assistant: Rust is a systems"));
+        assert!(summary.contains("User: Tell me more."));
+    }
+
+    #[test]
+    fn test_compact_keep_recent_exact() {
+        let config = CompactConfig {
+            threshold: 0,
+            keep_recent: 3,
+        };
+        let msgs = vec![
+            Message::user("old"),
+            Message::assistant("old-reply"),
+            Message::user("mid"),
+            Message::assistant("mid-reply"),
+            Message::user("new"),
+        ];
+        let result = compact_messages(&msgs, &config);
+        // 1 summary + 3 recent = 4
+        assert_eq!(result.len(), 4);
+        // Last message should be the newest
+        assert_eq!(result[3].text(), "new");
+    }
 }

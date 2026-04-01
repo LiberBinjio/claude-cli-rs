@@ -200,36 +200,74 @@ mod tests {
     }
 
     #[test]
+    fn tool_info_no_description() {
+        let json = r#"{"name":"my_tool","input_schema":{"type":"object"}}"#;
+        let tool: McpToolInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(tool.name, "my_tool");
+        assert!(tool.description.is_none());
+        assert_eq!(tool.input_schema["type"], "object");
+    }
+
+    #[test]
     fn resource_info_roundtrip() {
         let res = McpResourceInfo {
-            uri: "file:///tmp/data.json".to_owned(),
+            uri: "file:///data.json".to_owned(),
             name: "data".to_owned(),
-            description: None,
+            description: Some("A data file".to_owned()),
             mime_type: Some("application/json".to_owned()),
         };
         let json = serde_json::to_string(&res).unwrap();
         let parsed: McpResourceInfo = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.uri, "file:///tmp/data.json");
-        assert!(parsed.description.is_none());
+        assert_eq!(parsed.uri, "file:///data.json");
+        assert_eq!(parsed.name, "data");
+        assert_eq!(parsed.description.as_deref(), Some("A data file"));
         assert_eq!(parsed.mime_type.as_deref(), Some("application/json"));
     }
 
     #[test]
-    fn tool_info_optional_description() {
-        let json = r#"{"name":"my_tool","input_schema":{}}"#;
-        let tool: McpToolInfo = serde_json::from_str(json).unwrap();
-        assert_eq!(tool.name, "my_tool");
-        assert!(tool.description.is_none());
+    fn resource_info_optional_fields() {
+        let json = r#"{"uri":"x://y","name":"test"}"#;
+        let res: McpResourceInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(res.uri, "x://y");
+        assert_eq!(res.name, "test");
+        assert!(res.description.is_none());
+        assert!(res.mime_type.is_none());
     }
 
     #[test]
-    fn server_config_placeholder() {
+    fn server_config_serde_roundtrip() {
         let cfg = McpServerConfig {
             command: "npx".to_owned(),
-            args: vec!["-y".to_owned(), "@mcp/server".to_owned()],
-            env: std::collections::HashMap::new(),
+            args: vec!["mcp-server".to_owned(), "--port".to_owned(), "3000".to_owned()],
+            env: {
+                let mut m = std::collections::HashMap::new();
+                m.insert("NODE_ENV".to_owned(), "production".to_owned());
+                m
+            },
         };
         let json = serde_json::to_string(&cfg).unwrap();
-        assert!(json.contains("npx"));
+        let parsed: McpServerConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.command, "npx");
+        assert_eq!(parsed.args.len(), 3);
+        assert_eq!(parsed.env.get("NODE_ENV").unwrap(), "production");
+    }
+
+    #[test]
+    fn server_config_defaults_empty() {
+        let json = r#"{"command":"echo"}"#;
+        let cfg: McpServerConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(cfg.command, "echo");
+        assert!(cfg.args.is_empty());
+        assert!(cfg.env.is_empty());
+    }
+
+    #[test]
+    fn response_with_error_data() {
+        let json = r#"{"jsonrpc":"2.0","id":3,"error":{"code":-32602,"message":"Invalid params","data":{"details":"missing field"}}}"#;
+        let resp: JsonRpcResponse = serde_json::from_str(json).unwrap();
+        let err = resp.error.unwrap();
+        assert_eq!(err.code, -32602);
+        assert!(err.data.is_some());
+        assert_eq!(err.data.unwrap()["details"], "missing field");
     }
 }

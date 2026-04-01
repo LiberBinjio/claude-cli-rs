@@ -58,7 +58,11 @@ impl EventLoop {
                 result = crossterm_event => {
                     if let Ok(Some(evt)) = result {
                         let mapped = match evt {
-                            ct_event::Event::Key(k) => Some(Event::Key(k)),
+                            ct_event::Event::Key(k)
+                                if k.kind == ct_event::KeyEventKind::Press =>
+                            {
+                                Some(Event::Key(k))
+                            }
                             ct_event::Event::Mouse(m) => Some(Event::Mouse(m)),
                             ct_event::Event::Resize(w, h) => Some(Event::Resize(w, h)),
                             _ => None,
@@ -116,5 +120,28 @@ mod tests {
     #[test]
     fn regular_key_not_quit() {
         assert!(!is_quit_key(&key(KeyCode::Char('a'), KeyModifiers::empty())));
+    }
+
+    #[test]
+    fn key_event_filters_release() {
+        let press = KeyEvent::new_with_kind(
+            KeyCode::Char('a'),
+            KeyModifiers::NONE,
+            KeyEventKind::Press,
+        );
+        let release = KeyEvent::new_with_kind(
+            KeyCode::Char('a'),
+            KeyModifiers::NONE,
+            KeyEventKind::Release,
+        );
+        let repeat = KeyEvent::new_with_kind(
+            KeyCode::Char('a'),
+            KeyModifiers::NONE,
+            KeyEventKind::Repeat,
+        );
+        // Only Press should pass the filter
+        assert_eq!(press.kind, KeyEventKind::Press);
+        assert_ne!(release.kind, KeyEventKind::Press);
+        assert_ne!(repeat.kind, KeyEventKind::Press);
     }
 }

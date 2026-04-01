@@ -14,7 +14,7 @@ use claude_tui::event::{is_quit_key, Event, EventLoop};
 use claude_tui::message_view::{DisplayMessage, MessageRole};
 use claude_tui::terminal;
 
-use args::CliArgs;
+use args::{CliArgs, CliCommand};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -25,6 +25,11 @@ async fn main() -> anyhow::Result<()> {
         tracing_subscriber::fmt()
             .with_env_filter("claude=debug")
             .init();
+    }
+
+    // Handle subcommands
+    if let Some(CliCommand::SelfTest) = &args.command {
+        return run_self_test(&args);
     }
 
     if args.print {
@@ -263,5 +268,46 @@ async fn run_interactive_mode(args: &CliArgs) -> anyhow::Result<()> {
 
     terminal::restore()?;
     println!("Goodbye!");
+    Ok(())
+}
+
+/// Run internal diagnostics: auth, tools, configuration.
+fn run_self_test(args: &CliArgs) -> anyhow::Result<()> {
+    println!("Claude Code (Rust) — Self-Test Diagnostics");
+    println!("==========================================");
+
+    // 1. Auth check
+    print!("Auth: ");
+    match claude_auth::providers::resolve_api_provider() {
+        Ok(provider) => {
+            let kind = format!("{provider:?}");
+            let label = kind.split('{').next().unwrap_or("Unknown").trim();
+            println!("OK ({label})");
+        }
+        Err(e) => println!("FAIL ({e})"),
+    }
+
+    // 2. Config check
+    let config = claude_core::config::AppConfig::default();
+    println!("Model: {}", config.model);
+    println!("Small model: {}", config.small_fast_model);
+
+    // 3. Working directory
+    let cwd = match &args.cwd {
+        Some(dir) => std::path::PathBuf::from(dir),
+        None => std::env::current_dir()?,
+    };
+    println!("CWD: {}", cwd.display());
+
+    // 4. Tools
+    let tool_set = claude_query::ToolSet::new();
+    println!("Tools registered: {}", tool_set.len());
+
+    // 5. Commands
+    let cmd_registry = claude_commands::CommandRegistry::new();
+    println!("Commands registered: {}", cmd_registry.all().len());
+
+    println!("==========================================");
+    println!("Self-test complete.");
     Ok(())
 }

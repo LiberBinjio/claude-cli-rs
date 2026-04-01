@@ -110,4 +110,47 @@ mod tests {
         let result = resolve_path(base, "child/file.txt");
         assert!(result.ends_with("child/file.txt"));
     }
+
+    #[test]
+    fn test_is_binary_empty_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("empty.dat");
+        std::fs::write(&path, b"").unwrap();
+        assert!(!is_binary_file(&path).unwrap());
+    }
+
+    #[test]
+    fn test_read_file_in_range_start_greater_than_end() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("lines.txt");
+        std::fs::write(&path, "a\nb\nc\n").unwrap();
+        // start(5) > total lines(3) → empty
+        let result = read_file_in_range(&path, 5, 10).unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_read_file_in_range_end_beyond_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("lines.txt");
+        std::fs::write(&path, "a\nb\nc\n").unwrap();
+        let result = read_file_in_range(&path, 2, 100).unwrap();
+        assert_eq!(result, "b\nc");
+    }
+
+    #[test]
+    fn test_ensure_dir_creates_nested() {
+        let dir = tempfile::tempdir().unwrap();
+        let nested = dir.path().join("a").join("b").join("c");
+        ensure_dir(&nested).unwrap();
+        assert!(nested.is_dir());
+    }
+
+    #[test]
+    fn test_atomic_write_creates_parent_dirs() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sub").join("deep").join("file.txt");
+        atomic_write(&path, "content").unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "content");
+    }
 }
