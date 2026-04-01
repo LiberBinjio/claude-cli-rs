@@ -1,0 +1,20 @@
+[package]
+name = "claude_utils"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Shared utilities: git, shell, fs, diff, tokens, markdown, platform, env"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+similar.workspace = true
+base64.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

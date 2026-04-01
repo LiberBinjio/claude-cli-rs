@@ -1,0 +1,22 @@
+[package]
+name = "claude_query"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "QueryEngine: conversation orchestration, query loop, context compaction"
+
+[dependencies]
+claude_core.workspace = true
+claude_api.workspace = true
+claude_tools.workspace = true
+claude_commands.workspace = true
+claude_utils.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

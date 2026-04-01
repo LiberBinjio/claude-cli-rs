@@ -1,0 +1,103 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/cli",
+    "crates/core",
+    "crates/api",
+    "crates/tools",
+    "crates/query",
+    "crates/commands",
+    "crates/mcp",
+    "crates/tui",
+    "crates/auth",
+    "crates/services",
+    "crates/bridge",
+    "crates/utils",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+rust-version = "1.85"
+repository = "https://github.com/anthropics/claude-cli-rs"
+description = "A rabbit-fast Rust reimplementation inspired by Claude Code"
+
+[workspace.dependencies]
+# Async
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+
+# HTTP
+reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"] }
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# TUI
+ratatui = "0.29"
+crossterm = "0.28"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+# Types
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# File system
+globset = "0.4"
+ignore = "0.4"
+notify = "7"
+
+# Diff
+similar = "2"
+
+# Network
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-native-roots"] }
+futures-util = "0.3"
+
+# Syntax highlighting
+syntect = "5"
+
+# Markdown
+pulldown-cmark = "0.12"
+
+# Security
+sha2 = "0.10"
+base64 = "0.22"
+rand = "0.9"
+
+# Testing
+tempfile = "3"
+wiremock = "0.6"
+
+# Internal crates
+claude_core = { path = "crates/core" }
+claude_api = { path = "crates/api" }
+claude_tools = { path = "crates/tools" }
+claude_query = { path = "crates/query" }
+claude_commands = { path = "crates/commands" }
+claude_mcp = { path = "crates/mcp" }
+claude_tui = { path = "crates/tui" }
+claude_auth = { path = "crates/auth" }
+claude_services = { path = "crates/services" }
+claude_bridge = { path = "crates/bridge" }
+claude_utils = { path = "crates/utils" }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true
+panic = "abort"

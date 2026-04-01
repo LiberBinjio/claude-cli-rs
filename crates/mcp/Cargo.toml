@@ -1,0 +1,20 @@
+[package]
+name = "claude_mcp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "MCP (Model Context Protocol) client: JSON-RPC, stdio/SSE transport"
+
+[dependencies]
+claude_core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+futures-util.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
