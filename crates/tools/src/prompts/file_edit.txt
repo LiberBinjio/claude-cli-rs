@@ -1,0 +1,11 @@
+Make a targeted edit to a file by replacing an exact string with a new string. The old_string must appear exactly once in the file — if it appears zero times or more than once, the edit is rejected. A unified diff of the change is returned.
+
+Parameters:
+- path (required): The file to edit.
+- old_string (required): The exact text to find and replace (must match exactly once).
+- new_string (required): The replacement text.
+
+Notes:
+- Include enough surrounding context in old_string to ensure a unique match.
+- The write is atomic — partial edits cannot corrupt the file.
+- Returns a unified diff showing the change.

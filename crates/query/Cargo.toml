@@ -9,7 +9,6 @@ description = "QueryEngine: conversation orchestration, query loop, context comp
 [dependencies]
 claude_core.workspace = true
 claude_api.workspace = true
-claude_tools.workspace = true
 claude_commands.workspace = true
 claude_utils.workspace = true
 tokio.workspace = true
@@ -17,6 +16,10 @@ serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
+futures-util.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+futures-util.workspace = true
+claude_auth.workspace = true

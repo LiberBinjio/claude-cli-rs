@@ -1,0 +1,10 @@
+Write content to a file on the local filesystem. If the file already exists it will be overwritten. Parent directories are created automatically. The write is performed atomically (write to temp file, then rename) to prevent data corruption.
+
+Parameters:
+- path (required): Absolute or relative file path.
+- content (required): The full content to write to the file.
+
+Notes:
+- Sensitive files (.env, .ssh, .gnupg, .aws, .npmrc, .netrc) are blocked.
+- Parent directories are created if they do not exist.
+- Returns the number of bytes and lines written.

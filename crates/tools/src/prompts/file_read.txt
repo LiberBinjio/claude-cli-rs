@@ -1,0 +1,11 @@
+Read the contents of a file from the local filesystem. Use this tool to examine source code, configuration files, documentation, or any other text files. Results include line numbers prefixed to each line. For binary files, only the size is reported.
+
+Parameters:
+- path (required): Absolute or relative path to the file.
+- start_line (optional): 1-indexed start line (inclusive). Default: 1.
+- end_line (optional): 1-indexed end line (inclusive). Default: start_line + 2000.
+
+Notes:
+- Line numbers are 1-indexed.
+- Binary files are detected automatically and reported with their size.
+- Large files are automatically capped at 2000 lines when no range is given.

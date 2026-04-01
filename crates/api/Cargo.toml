@@ -17,6 +17,7 @@ anyhow.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 futures-util.workspace = true
+rand.workspace = true
 
 [dev-dependencies]
 wiremock.workspace = true

@@ -7,9 +7,10 @@ rust-version.workspace = true
 description = "Terminal UI: ratatui-based REPL, message rendering, diff view, dialogs"
 
 [dependencies]
-claude_core.workspace = true
-claude_query.workspace = true
-claude_utils.workspace = true
+# CROSS-DEP: uncomment after dev1/dev2 complete Wave 6 recovery
+# claude_core.workspace = true
+# claude_query.workspace = true
+# claude_utils.workspace = true
 ratatui.workspace = true
 crossterm.workspace = true
 tokio.workspace = true

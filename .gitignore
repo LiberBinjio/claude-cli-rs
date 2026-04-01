@@ -6,6 +6,7 @@ Cargo.lock
 # IDE
 .idea/
 .vscode/
+.github/
 *.swp
 *.swo
 *~
@@ -27,3 +28,12 @@ tarpaulin-report.html
 
 # Build
 dist/
+
+# Tasks
+tasks/
+
+# Markdown drafts
+rewrite.md
+
+# Temporary test scripts
+run-tests.ps1

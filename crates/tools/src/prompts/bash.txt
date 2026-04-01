@@ -1,0 +1,9 @@
+Execute a bash command on the system. Use for running scripts, installing packages, compiling code, managing files, and performing system operations.
+
+Important guidelines:
+- Always use absolute paths when referencing files
+- Set timeout for potentially long-running commands
+- Prefer non-interactive commands
+- Do not use commands that require user input (e.g., sudo with password prompt)
+- Chain commands with && or ; when appropriate
+- Use quotes around arguments containing spaces

@@ -1,0 +1,7 @@
+Search for patterns in files using ripgrep. Fast and respects .gitignore.
+
+Guidelines:
+- Use regex patterns for flexible matching
+- Use 'include' to filter by file type (e.g., "*.rs", "*.py")
+- Use 'path' to narrow the search to a specific directory or file
+- Results are limited to prevent excessive output

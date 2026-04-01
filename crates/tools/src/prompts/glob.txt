@@ -1,0 +1,10 @@
+Find files matching a glob pattern in the workspace. Respects .gitignore rules by default. Use this to discover project structure, find files by extension, or locate specific files.
+
+Parameters:
+- pattern (required): A glob pattern such as "**/*.rs", "src/**/*.ts", "*.md".
+- path (optional): Base directory to search in. Defaults to the current working directory.
+
+Notes:
+- Results are limited to 1000 matches to prevent excessive output.
+- Hidden files are included; .gitignore patterns are respected.
+- Returns one file path per line.

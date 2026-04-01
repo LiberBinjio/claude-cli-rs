@@ -7,8 +7,8 @@ rust-version.workspace = true
 description = "Bridge: WebSocket relay to claude.ai, JWT auth, remote sessions"
 
 [dependencies]
-claude_core.workspace = true
-claude_api.workspace = true
+# claude_core.workspace = true  # CROSS-DEP: dev1 — not directly needed
+# claude_api.workspace = true  # CROSS-DEP: dev1 — not directly needed
 tokio.workspace = true
 tokio-tungstenite.workspace = true
 futures-util.workspace = true
@@ -17,6 +17,7 @@ serde_json.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+base64.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

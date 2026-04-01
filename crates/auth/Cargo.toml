@@ -7,7 +7,7 @@ rust-version.workspace = true
 description = "Authentication: OAuth PKCE, API key, keychain, provider routing"
 
 [dependencies]
-claude_core.workspace = true
+# claude_core.workspace = true  # CROSS-DEP: dev1 core types not yet restored
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -18,7 +18,10 @@ tracing.workspace = true
 sha2.workspace = true
 base64.workspace = true
 rand.workspace = true
+dirs = "5"
+keyring = "3"
 
 [dev-dependencies]
 tempfile.workspace = true
 wiremock.workspace = true
+serial_test = "3"

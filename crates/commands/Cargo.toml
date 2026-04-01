@@ -7,9 +7,9 @@ rust-version.workspace = true
 description = "Slash command system: /help, /compact, /model, /mcp, ..."
 
 [dependencies]
-claude_core.workspace = true
-claude_utils.workspace = true
-tokio.workspace = true
+# claude_core.workspace = true  # CROSS-DEP: dev1 — AppState, PermissionMode
+# claude_utils.workspace = true  # CROSS-DEP: dev2 — not needed for commands foundation
+tokio = { workspace = true, features = ["sync"] }
 async-trait.workspace = true
 anyhow.workspace = true
 serde.workspace = true
@@ -18,3 +18,4 @@ tracing.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+tokio = { workspace = true, features = ["full"] }
