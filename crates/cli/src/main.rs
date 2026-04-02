@@ -104,7 +104,17 @@ async fn run_interactive_mode(args: &CliArgs) -> anyhow::Result<()> {
             app.repl.messages.push(DisplayMessage {
                 role: MessageRole::System,
                 text: format!(
-                    "Initialization failed: {e}\n\n\
+                    "Initialization failed: {e}\n\
+                     \n\
+                     Choose an authentication method:\n\
+                     \n\
+                     [Option 1] Set ANTHROPIC_API_KEY environment variable\n\
+                     [Option 2] Run `claude auth login` for OAuth (browser-based)\n\
+                     [Option 3] Use GitHub Copilot: restart with `claude --copilot`\n\
+                     \n\
+                     Option 3 requires VS Code + Agent Maestro extension running.\n\
+                     Set ANTHROPIC_API_KEY or run `claude login`.\n\
+                     \n\
                      Set ANTHROPIC_API_KEY and restart."
                 ),
                 tool_info: None,

@@ -146,6 +146,17 @@ impl ApiClient {
                 )];
                 (url, headers)
             }
+            ApiProvider::CopilotProxy { proxy_url, api_key } => {
+                let url = format!("{proxy_url}/v1/messages");
+                let mut headers = vec![
+                    ("anthropic-version".to_string(), "2023-06-01".to_string()),
+                    ("content-type".to_string(), "application/json".to_string()),
+                ];
+                if let Some(key) = api_key {
+                    headers.push(("x-api-key".to_string(), key.clone()));
+                }
+                (url, headers)
+            }
         }
     }
 }
@@ -220,5 +231,28 @@ mod tests {
         );
         let (url, _) = client.build_request_info();
         assert!(url.starts_with("https://custom.api.com/v1/messages"));
+    }
+
+    #[test]
+    fn test_copilot_proxy_url() {
+        let client = make_client(ApiProvider::CopilotProxy {
+            proxy_url: "http://127.0.0.1:23333/api/anthropic".into(),
+            api_key: Some("test-key".into()),
+        });
+        let (url, headers) = client.build_request_info();
+        assert_eq!(url, "http://127.0.0.1:23333/api/anthropic/v1/messages");
+        assert!(headers.iter().any(|(k, v)| k == "x-api-key" && v == "test-key"));
+        assert!(headers.iter().any(|(k, v)| k == "anthropic-version" && v == "2023-06-01"));
+    }
+
+    #[test]
+    fn test_copilot_proxy_url_no_key() {
+        let client = make_client(ApiProvider::CopilotProxy {
+            proxy_url: "http://localhost:9999/api/anthropic".into(),
+            api_key: None,
+        });
+        let (url, headers) = client.build_request_info();
+        assert_eq!(url, "http://localhost:9999/api/anthropic/v1/messages");
+        assert!(!headers.iter().any(|(k, _)| k == "x-api-key"));
     }
 }

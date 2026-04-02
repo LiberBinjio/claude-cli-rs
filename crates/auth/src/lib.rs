@@ -1,6 +1,7 @@
 //! Claude Code authentication: OAuth PKCE, API key, keychain, provider routing.
 
 pub mod api_key;
+pub mod copilot;
 pub mod keychain;
 pub mod oauth;
 pub mod providers;

@@ -37,11 +37,20 @@ pub fn setup(args: &CliArgs) -> anyhow::Result<AppServices> {
         ..AppConfig::default()
     };
 
+    // 2b. Copilot proxy override
+    if args.copilot {
+        // SAFETY: single-threaded at startup, no other threads read this var yet.
+        unsafe { std::env::set_var("CLAUDE_CODE_USE_COPILOT", "1") };
+    }
+
     // 3. Authentication
     let provider = resolve_api_provider().map_err(|e| {
         anyhow::anyhow!(
             "Authentication failed: {e}.\n\
-             Set ANTHROPIC_API_KEY or run `claude login`."
+             Set ANTHROPIC_API_KEY or run `claude login`.\n\
+             \n\
+             Or use GitHub Copilot: claude --copilot\n\
+             (requires VS Code + Agent Maestro extension)"
         )
     })?;
 
@@ -98,6 +107,7 @@ mod tests {
             cwd: Some(".".into()),
             resume: None,
             verbose: false,
+            copilot: false,
             command: None,
         };
         let result = setup(&args);

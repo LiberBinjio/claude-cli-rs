@@ -33,6 +33,10 @@ pub struct CliArgs {
     #[arg(short, long)]
     pub verbose: bool,
 
+    /// Use GitHub Copilot via Agent Maestro proxy (requires VS Code + Agent Maestro extension).
+    #[arg(long)]
+    pub copilot: bool,
+
     /// Subcommand to run.
     #[command(subcommand)]
     pub command: Option<CliCommand>,

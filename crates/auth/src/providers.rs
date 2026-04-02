@@ -27,6 +27,13 @@ pub enum ApiProvider {
         access_token: String,
         refresh_token: String,
     },
+    /// GitHub Copilot via Agent Maestro local proxy.
+    CopilotProxy {
+        /// Proxy URL, e.g. "http://127.0.0.1:23333/api/anthropic"
+        proxy_url: String,
+        /// Optional API key for the proxy (if Agent Maestro has auth configured)
+        api_key: Option<String>,
+    },
 }
 
 /// Resolve the API provider from environment variables and stored credentials.
@@ -34,9 +41,10 @@ pub enum ApiProvider {
 /// Priority order:
 /// 1. `CLAUDE_CODE_USE_BEDROCK=1` -> Bedrock
 /// 2. `CLAUDE_CODE_USE_VERTEX=1` -> Vertex
-/// 3. Valid (non-expired) OAuth tokens -> OAuth
-/// 4. API key (env / config file / keychain) -> Anthropic
-/// 5. Error
+/// 3. `CLAUDE_CODE_USE_COPILOT=1` or `COPILOT_PROXY_URL` -> CopilotProxy
+/// 4. Valid (non-expired) OAuth tokens -> OAuth
+/// 5. API key (env / config file / keychain) -> Anthropic
+/// 6. Error
 pub fn resolve_api_provider() -> Result<ApiProvider> {
     // 1. Bedrock
     if std::env::var("CLAUDE_CODE_USE_BEDROCK").unwrap_or_default() == "1" {
@@ -61,7 +69,18 @@ pub fn resolve_api_provider() -> Result<ApiProvider> {
         return Ok(ApiProvider::Vertex { project_id, region });
     }
 
-    // 3. OAuth tokens (file or keychain)
+    // 3. Copilot Proxy (Agent Maestro)
+    if std::env::var("CLAUDE_CODE_USE_COPILOT").unwrap_or_default() == "1"
+        || std::env::var("COPILOT_PROXY_URL").is_ok()
+    {
+        let proxy_url = std::env::var("COPILOT_PROXY_URL")
+            .unwrap_or_else(|_| "http://127.0.0.1:23333/api/anthropic".into());
+        let api_key = std::env::var("COPILOT_PROXY_KEY").ok();
+        debug!("Resolved provider: CopilotProxy (url={proxy_url})");
+        return Ok(ApiProvider::CopilotProxy { proxy_url, api_key });
+    }
+
+    // 4. OAuth tokens (file or keychain)
     if let Some(tokens) = crate::oauth::load_tokens() {
         if !crate::oauth::is_token_expired(&tokens) {
             debug!("Resolved provider: OAuth (token from file)");
@@ -81,7 +100,7 @@ pub fn resolve_api_provider() -> Result<ApiProvider> {
         }
     }
 
-    // 4. API key
+    // 5. API key
     if let Some(api_key) = crate::api_key::get_api_key() {
         let base_url = std::env::var("ANTHROPIC_BASE_URL")
             .unwrap_or_else(|_| "https://api.anthropic.com".into());
@@ -89,10 +108,13 @@ pub fn resolve_api_provider() -> Result<ApiProvider> {
         return Ok(ApiProvider::Anthropic { api_key, base_url });
     }
 
-    // 5. Nothing found
+    // 6. Nothing found
     anyhow::bail!(
         "No API credentials found. Set ANTHROPIC_API_KEY, \
-         run `claude auth login` for OAuth, or configure Bedrock/Vertex."
+         run `claude auth login` for OAuth, or configure Bedrock/Vertex.\n\
+         \n\
+         Alternatively, use GitHub Copilot: claude --copilot\n\
+         (requires VS Code + Agent Maestro extension)"
     )
 }
 
@@ -110,6 +132,7 @@ pub fn get_api_base_url(provider: &ApiProvider) -> String {
             "https://{region}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{region}/publishers/anthropic/models"
         ),
         ApiProvider::OAuth { .. } => "https://api.anthropic.com".into(),
+        ApiProvider::CopilotProxy { proxy_url, .. } => proxy_url.clone(),
     }
 }
 
@@ -197,6 +220,8 @@ mod tests {
         unsafe {
             std::env::remove_var("CLAUDE_CODE_USE_BEDROCK");
             std::env::remove_var("CLAUDE_CODE_USE_VERTEX");
+            std::env::remove_var("CLAUDE_CODE_USE_COPILOT");
+            std::env::remove_var("COPILOT_PROXY_URL");
             std::env::set_var("ANTHROPIC_API_KEY", "sk-test-resolve");
         }
         let provider = resolve_api_provider().unwrap();
@@ -221,6 +246,8 @@ mod tests {
         unsafe {
             std::env::remove_var("CLAUDE_CODE_USE_BEDROCK");
             std::env::remove_var("CLAUDE_CODE_USE_VERTEX");
+            std::env::remove_var("CLAUDE_CODE_USE_COPILOT");
+            std::env::remove_var("COPILOT_PROXY_URL");
             std::env::remove_var("ANTHROPIC_API_KEY");
         }
         let result = resolve_api_provider();
@@ -319,6 +346,8 @@ mod tests {
         unsafe {
             std::env::remove_var("CLAUDE_CODE_USE_BEDROCK");
             std::env::remove_var("CLAUDE_CODE_USE_VERTEX");
+            std::env::remove_var("CLAUDE_CODE_USE_COPILOT");
+            std::env::remove_var("COPILOT_PROXY_URL");
             std::env::set_var("ANTHROPIC_API_KEY", "sk-custom");
             std::env::set_var("ANTHROPIC_BASE_URL", "https://proxy.example.com");
         }
@@ -350,6 +379,107 @@ mod tests {
                 assert_eq!(base_url, "https://api.anthropic.com");
             }
             other => panic!("Expected Anthropic, got {other:?}"),
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_resolve_copilot_proxy_default() {
+        let _guard = OAuthGuard::new();
+        unsafe {
+            std::env::remove_var("CLAUDE_CODE_USE_BEDROCK");
+            std::env::remove_var("CLAUDE_CODE_USE_VERTEX");
+            std::env::remove_var("ANTHROPIC_API_KEY");
+            std::env::remove_var("COPILOT_PROXY_URL");
+            std::env::remove_var("COPILOT_PROXY_KEY");
+            std::env::set_var("CLAUDE_CODE_USE_COPILOT", "1");
+        }
+        let provider = resolve_api_provider().expect("should resolve CopilotProxy");
+        match provider {
+            ApiProvider::CopilotProxy { proxy_url, api_key } => {
+                assert_eq!(proxy_url, "http://127.0.0.1:23333/api/anthropic");
+                assert!(api_key.is_none());
+            }
+            other => panic!("Expected CopilotProxy, got {other:?}"),
+        }
+        unsafe {
+            std::env::remove_var("CLAUDE_CODE_USE_COPILOT");
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_resolve_copilot_proxy_custom_url() {
+        let _guard = OAuthGuard::new();
+        unsafe {
+            std::env::remove_var("CLAUDE_CODE_USE_BEDROCK");
+            std::env::remove_var("CLAUDE_CODE_USE_VERTEX");
+            std::env::remove_var("ANTHROPIC_API_KEY");
+            std::env::remove_var("CLAUDE_CODE_USE_COPILOT");
+            std::env::set_var("COPILOT_PROXY_URL", "http://localhost:9999/api/anthropic");
+        }
+        let provider = resolve_api_provider().expect("should resolve CopilotProxy");
+        match provider {
+            ApiProvider::CopilotProxy { proxy_url, .. } => {
+                assert_eq!(proxy_url, "http://localhost:9999/api/anthropic");
+            }
+            other => panic!("Expected CopilotProxy, got {other:?}"),
+        }
+        unsafe {
+            std::env::remove_var("COPILOT_PROXY_URL");
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_resolve_copilot_proxy_with_key() {
+        let _guard = OAuthGuard::new();
+        unsafe {
+            std::env::remove_var("CLAUDE_CODE_USE_BEDROCK");
+            std::env::remove_var("CLAUDE_CODE_USE_VERTEX");
+            std::env::remove_var("ANTHROPIC_API_KEY");
+            std::env::set_var("CLAUDE_CODE_USE_COPILOT", "1");
+            std::env::set_var("COPILOT_PROXY_KEY", "my-proxy-key");
+        }
+        let provider = resolve_api_provider().expect("should resolve CopilotProxy");
+        match provider {
+            ApiProvider::CopilotProxy { api_key, .. } => {
+                assert_eq!(api_key, Some("my-proxy-key".to_string()));
+            }
+            other => panic!("Expected CopilotProxy, got {other:?}"),
+        }
+        unsafe {
+            std::env::remove_var("CLAUDE_CODE_USE_COPILOT");
+            std::env::remove_var("COPILOT_PROXY_KEY");
+        }
+    }
+
+    #[test]
+    fn test_copilot_proxy_base_url() {
+        let provider = ApiProvider::CopilotProxy {
+            proxy_url: "http://127.0.0.1:23333/api/anthropic".into(),
+            api_key: None,
+        };
+        assert_eq!(
+            get_api_base_url(&provider),
+            "http://127.0.0.1:23333/api/anthropic"
+        );
+    }
+
+    #[test]
+    fn test_copilot_proxy_serde_roundtrip() {
+        let provider = ApiProvider::CopilotProxy {
+            proxy_url: "http://127.0.0.1:23333/api/anthropic".into(),
+            api_key: Some("key-123".into()),
+        };
+        let json = serde_json::to_string(&provider).expect("serialize");
+        let deser: ApiProvider = serde_json::from_str(&json).expect("deserialize");
+        match deser {
+            ApiProvider::CopilotProxy { proxy_url, api_key } => {
+                assert_eq!(proxy_url, "http://127.0.0.1:23333/api/anthropic");
+                assert_eq!(api_key, Some("key-123".to_string()));
+            }
+            other => panic!("Expected CopilotProxy, got {other:?}"),
         }
     }
 }
