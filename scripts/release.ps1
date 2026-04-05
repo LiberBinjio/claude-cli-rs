@@ -13,6 +13,33 @@ Set-StrictMode -Version Latest
 
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 $DistDir = Join-Path $ProjectRoot 'dist'
+$CargoBin = Join-Path $env:USERPROFILE '.cargo\bin'
+$LlvmBinCandidates = @(
+    'C:\Program Files\LLVM\bin',
+    (Join-Path $env:LOCALAPPDATA 'Programs\LLVM\bin')
+)
+
+if (Test-Path $CargoBin) {
+    $pathEntries = $env:PATH -split ';'
+    if ($pathEntries -notcontains $CargoBin) {
+        $env:PATH = "$CargoBin;$env:PATH"
+    }
+}
+
+foreach ($llvmBin in $LlvmBinCandidates) {
+    if ((Test-Path $llvmBin) -and ((Join-Path $llvmBin 'clang.exe') | Test-Path)) {
+        $pathEntries = $env:PATH -split ';'
+        if ($pathEntries -notcontains $llvmBin) {
+            $env:PATH = "$llvmBin;$env:PATH"
+        }
+        break
+    }
+}
+
+if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
+    Write-Host 'ERROR: cargo not found. Run .\scripts\install.ps1 first, or reopen your terminal after installing Rust.' -ForegroundColor Red
+    exit 1
+}
 
 function Invoke-CargoRelease {
     $oldPref = $ErrorActionPreference
@@ -38,6 +65,12 @@ try {
     $buildResult = Invoke-CargoRelease
     if ($buildResult.ExitCode -ne 0) {
         Write-Host 'FAILED: Release build failed' -ForegroundColor Red
+        if ($buildResult.Output -match 'failed to find tool "clang"') {
+            Write-Host 'Hint: clang is missing. On Windows ARM64, run .\scripts\install.ps1 to install LLVM.' -ForegroundColor Yellow
+        }
+        if ($buildResult.Output -match 'link\.exe`? not found') {
+            Write-Host 'Hint: MSVC linker is missing. Run .\scripts\install.ps1 to install Visual Studio Build Tools.' -ForegroundColor Yellow
+        }
         if ($buildResult.Output -match 'os error 5') {
             Write-Host 'Hint: executable may be locked by a running process. Close claude.exe and retry.' -ForegroundColor Yellow
         }
